@@ -1,0 +1,5 @@
+# Ignore all models created
+models/*
+
+# Ignore all csvs created
+csvs/*
