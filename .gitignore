@@ -3,10 +3,10 @@ models/*
 
 # Ignore all csvs created
 csvs/*.csv
+csvs/*.npy
 
 # Ignore pycache
 __pycache__
 
 # Ignore any .bat files that might break the system
-installs.bat
-RunMe.bat
+*.bat

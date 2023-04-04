@@ -220,8 +220,7 @@ def train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred
 
 if __name__=='__main__':
 
-    folder_path = os.path.dirname(os.path.abspath(__file__))
-    folder_path = os.path.basename(folder_path)
+    folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
     csv_directory = folder_path + r"\csvs"
 
