@@ -1,5 +1,59 @@
 import pandas as pd
 import os
+import re
+
+class availablemodes:
+
+    def __init__(self):
+        self.datasets = {}
+        self.find_datasets()
+
+
+    def get_keys(self):
+        return list(self.datasets.keys())
+
+
+    def get_models(self, dataset, directory):
+
+        file_path = directory + "\\" + dataset
+        frame = pd.read_csv(file_path)
+        cols = frame.columns.values
+        cols = [col for col in cols if col != "Date" and col != "Actual"]
+        return cols
+    
+
+    def get_periods(self, dataset, directory):
+
+        periods = []
+        files = os.listdir(directory)
+        files = " ".join(files)
+        datasets = re.findall(" " + dataset + "_performances_[0-9]+.csv", files)
+
+        for file in datasets:
+            if dataset in file:
+                periods.append(int(re.findall(r'\d+', file)[0]))
+
+        return periods
+                
+
+    def find_datasets(self):
+
+        folder_path = os.getcwd()
+        csv_directory = folder_path + r"\csvs"
+        files = os.listdir(csv_directory)
+        files = " ".join(files)
+        datasets = re.findall(" [a-zA-Z]+_performances_[0-9]+.csv", files)
+        for dataset in datasets:
+                set_name = str.split(dataset, '_')[0][1:]
+                periods = self.get_periods(set_name, csv_directory)
+                models = self.get_models(dataset[1:], csv_directory)
+                self.datasets[set_name] = {"Periods": periods, "Models": models}
+
+    def return_dataset(self, dataset):
+        return self.datasets.get(dataset)
+
+
+    
 
 
 class infokeeper:
@@ -81,7 +135,7 @@ class datasets:
         if baseline:
             baseline_row = dataframe[dataframe['Model'] == "Baseline"]
             model_row = dataframe[dataframe['Model'] == model]
-            rows = {"Baseline": baseline_row, "Model": model_row}
+            rows = pd.concat([baseline_row, model_row], ignore_index=True)
         else:
             rows = dataframe[dataframe['Model'] == model]
 

@@ -3,6 +3,7 @@ import pathlib
 import numpy as np
 import datetime as dt
 import dash
+import plotly.express as px
 from dash import dcc
 from dash import html
 # import dash_core_components as dcc
@@ -11,11 +12,14 @@ from dash import html
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 from scipy.stats import rayleigh
-from ui_datafinder import datasets, infokeeper
+from ui_datafinder import datasets, infokeeper, availablemodes
 
 
 GRAPH_INTERVAL = os.environ.get("GRAPH_INTERVAL", 5000)
+
 dataset = datasets()
+available = availablemodes()
+
 info = infokeeper()
 info.set_model("Basic_nn")
 info.set_baseline(0)
@@ -49,6 +53,50 @@ app.layout = html.Div(
             ],
             className="app__header",
         ),
+
+        html.Div(
+            [
+                dash.dcc.Dropdown(id="dataset",
+                        options= available.get_keys(),
+                        multi=False,
+                        value=available.get_keys()[0],
+                        style={'width': "100%"},
+                        placeholder='Select an available dataset'
+                ),
+                dash.dcc.Dropdown(id="model",
+                        options=[
+                            {"label": "7", "value": "model_7"},
+                            {"label": "30", "value": "model_30"},
+                            {"label": "90", "value": "model_90"}],
+                        multi=False,
+                        value="model_7",
+                        style={'width': "100%"},
+                        placeholder='Select Forecasting Period'
+                ),
+                dash.dcc.Dropdown(id="baseline",
+                        options=[
+                            {"label": "On", "value": 1},
+                            {"label": "Off", "value": 0}],
+                        multi=False,
+                        value=0,
+                        style={'width': "100%"},
+                        placeholder='Enable Baseline'
+                ),
+                dash.dcc.Dropdown(id="period",
+                        options=[
+                            {"label": "7", "value": "model_7"},
+                            {"label": "30", "value": "model_30"},
+                            {"label": "90", "value": "model_90"}],
+                        multi=False,
+                        value="model_7",
+                        style={'width': "100%"},
+                        placeholder='Select Forecasting Period'
+                )
+            ],
+            style={'display': 'inline-block'},
+            className="app__buttons",
+        ),
+
         html.Div(
             [
                 # wind speed
@@ -231,31 +279,20 @@ def gen_metrics(interval):
     :params interval: update the graph based on an interval
     """
 
-    return 0
     model, baseline, period = info.get_stats()
 
     df = dataset.get_metrics_data(model, baseline, period)
 
-    val = df["Speed"].iloc[-1]
-    direction = [0, (df["Direction"][0] - 20), (df["Direction"][0] + 20), 0]
-
-    traces_scatterpolar = [
-        {"r": [0, val, val, 0], "fillcolor": "#084E8A"},
-        {"r": [0, val * 0.65, val * 0.65, 0], "fillcolor": "#B4E1FA"},
-        {"r": [0, val * 0.3, val * 0.3, 0], "fillcolor": "#EBF5FA"},
-    ]
-
     data = [
         dict(
             type="scatterpolar",
-            r=traces["r"],
-            theta=direction,
+            r=df["Value"],
+            theta=df["Metric"],
+            color=df["Model"],
             mode="lines",
             fill="toself",
-            fillcolor=traces["fillcolor"],
             line={"color": "rgba(32, 32, 32, .6)", "width": 1},
         )
-        for traces in traces_scatterpolar
     ]
 
     layout = dict(
@@ -266,8 +303,6 @@ def gen_metrics(interval):
         autosize=False,
         polar={
             "bgcolor": app_color["graph_line"],
-            "radialaxis": {"range": [0, 45], "angle": 45, "dtick": 10},
-            "angularaxis": {"showline": False, "tickcolor": "white"},
         },
         showlegend=False,
     )
@@ -429,6 +464,65 @@ def deselect_auto(slider_value, energy_forecast_figure):
     if energy_forecast_figure is not None and len(energy_forecast_figure["data"][0]["y"]) > 5:
         return [""]
     return ["Auto"]
+
+
+@app.callback(
+    Output('model', 'options'),
+    Output('model', 'value'),
+    Input('dataset', 'value')
+)
+def update_model_options(dataset):
+    
+    options = []
+    values = available.return_dataset(dataset)
+    models = values.get('Models')
+    for model in models:
+        option = {'labels': model, 'value': model}
+        options.append(option)
+    
+    value = models[0]
+
+    return options, value
+
+
+@app.callback(
+    Output('period', 'options'),
+    Output('period', 'value'),
+    Input('dataset', 'value')
+)
+def update_period_options(dataset):
+    
+    options = []
+    values = available.return_dataset(dataset)
+    periods = values.get('Periods')
+    for period in periods:
+        option = {'labels': str(period), 'value': period}
+        options.append(option)
+    
+    value = 0
+
+    return options, value
+
+
+@app.callback(
+    Output('baseline', 'options'),
+    Output('baseline', 'value'),
+    Input('dataset', 'value')
+)
+def update_baseline_options(dataset):
+
+    options = []
+    values = available.return_dataset(dataset)
+    models = values.get('Models')
+    if 'Baseline' in models:
+        options = [{'label': 'On', 'value': 1},
+                   {'label': 'Off', 'value': 0}]
+    else:
+        options = [{'label': 'Off', 'value': 0}]
+    
+    value = 0
+
+    return options, value
 
 
 @app.callback(
