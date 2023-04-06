@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 
-def feature_adder(data, holidays, future, csv_directory):
+def feature_adder(data, holidays, future, csv_directory, set_name):
 
     data['Holiday'] = data.index.isin(holidays['Date']).astype(int)
     data['PrevDaySameHour'] = data['SYSLoad'].copy().shift(48)
@@ -24,8 +24,8 @@ def feature_adder(data, holidays, future, csv_directory):
     else:
         data = data[['DryBulb', 'DewPnt', 'WetBulb','Humidity','Hour', 'Weekday', 'IsWorkingDay', 'PrevWeekSameHour', 'PrevDaySameHour', 'Prev24HourAveLoad']]
 
-    data_name = csv_directory + "/data_" + str(future) + ".csv"
-    output_name = csv_directory + "/outputs_" + str(future) + ".csv"
+    data_name = csv_directory + "/" + set_name + "_data_" + str(future) + ".csv"
+    output_name = csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv"
 
     data.to_csv(data_name)
     outputs.to_csv(output_name, index=False)
@@ -38,17 +38,15 @@ if __name__=="__main__":
 
     try:
         
-        folder_path = os.path.dirname(os.path.abspath(__file__))
-        folder_path = os.path.basename(folder_path)
-
+        folder_path = os.getcwd()
         csv_directory = folder_path + r"\csvs"
         
         data = pd.read_excel(csv_directory + r'\ausdata.xlsx').set_index("Date")
         holidays = pd.read_excel(csv_directory + r'\Holidays2.xls')
 
-        feature_adder(data, holidays, 0, csv_directory)
-        feature_adder(data, holidays, 1, csv_directory)
-        feature_adder(data, holidays, 7, csv_directory)
+        feature_adder(data, holidays, 0, csv_directory, "matlab")
+        feature_adder(data, holidays, 1, csv_directory, "matlab")
+        feature_adder(data, holidays, 7, csv_directory, "matlab")
     
     except FileNotFoundError:
 

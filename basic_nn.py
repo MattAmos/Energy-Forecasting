@@ -22,32 +22,21 @@ import keras_tuner as kt
 
 
 
-class FeatureScaler(BaseEstimator, TransformerMixin):
+class BnnFeatureScaler(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y=None):
         return self
     
     def transform(self, X):
 
-        if standard_scaling:
-            dry = StandardScaler()
-            dew = StandardScaler()
-            wet = StandardScaler()
-            humid = StandardScaler()
-            hour = StandardScaler()
-            prevWeek = StandardScaler()
-            prevDay = StandardScaler()
-            prev24 = StandardScaler()
-
-        else:
-            dry = MinMaxScaler(feature_range=(0,1))
-            dew = MinMaxScaler(feature_range=(0,1))
-            wet = MinMaxScaler(feature_range=(0,1))
-            humid = MinMaxScaler(feature_range=(0,1))
-            hour = MinMaxScaler(feature_range=(0,1))
-            prevWeek = MinMaxScaler(feature_range=(0,1))
-            prevDay = MinMaxScaler(feature_range=(0,1))
-            prev24 = MinMaxScaler(feature_range=(0,1))
+        dry = MinMaxScaler(feature_range=(0,1))
+        dew = MinMaxScaler(feature_range=(0,1))
+        wet = MinMaxScaler(feature_range=(0,1))
+        humid = MinMaxScaler(feature_range=(0,1))
+        hour = MinMaxScaler(feature_range=(0,1))
+        prevWeek = MinMaxScaler(feature_range=(0,1))
+        prevDay = MinMaxScaler(feature_range=(0,1))
+        prev24 = MinMaxScaler(feature_range=(0,1))
 
         X['DryBulb'] = dry.fit_transform(X[['DryBulb']])
         X['DewPnt'] = dew.fit_transform(X[['DewPnt']])
@@ -61,7 +50,7 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         return [dry, dew, wet, humid, hour, prevWeek, prevDay, prev24]
     
     
-def create_dataset(input, win_size):
+def bnn_create_dataset(input, win_size):
     
     np_data = input.copy()
 
@@ -74,7 +63,7 @@ def create_dataset(input, win_size):
     return np.array(X)
 
 
-def get_metrics(predictions, actual):
+def bnn_get_metrics(predictions, actual):
 
     MSE = mse(actual, predictions, squared=True)
     MAE = mae(actual, predictions)
@@ -86,22 +75,17 @@ def get_metrics(predictions, actual):
     return metrics
     
 
-def scaling(csv_directory, future):
+def bnn_scaling(csv_directory, future, set_name):
 
-    data = pd.read_csv(csv_directory + r"\data_" + str(future) + ".csv").drop('Date', axis=1)
-    outputs = pd.read_csv(csv_directory + r"\outputs_" + str(future) + ".csv")
+    data = pd.read_csv(csv_directory + "/" + set_name + "_data_" + str(future) + ".csv").drop('Date', axis=1)
+    outputs = pd.read_csv(csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv")
 
-    pipe = Pipeline([('Scaler', FeatureScaler())])
+    pipe = Pipeline([('Scaler', BnnFeatureScaler())])
     scalers = pipe.fit_transform(data)
 
     pred_dates = outputs['Date']
-    actual = outputs['SYSLoad']
 
-    if standard_scaling:
-        y_scaler = StandardScaler()
-
-    else:
-        y_scaler = MinMaxScaler(feature_range=(0,1))
+    y_scaler = MinMaxScaler(feature_range=(0,1))
 
     y_data = y_scaler.fit_transform(outputs[['SYSLoad']])
 
@@ -111,28 +95,28 @@ def scaling(csv_directory, future):
     return X_frame, y_data, pred_dates, y_scaler, scalers
 
 
-def make_csvs(csv_directory, predictions, y_test, pred_dates_test):
+def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
 
-    metric_outputs = get_metrics(predictions, y_test)
+    metric_outputs = bnn_get_metrics(predictions, y_test)
 
-    if not os.path.exists(csv_directory + r"\performances_" + str(future) + ".csv"):
+    if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "Basic_nn": predictions})
-        performances.to_csv(csv_directory + r"\performances_" + str(future) + ".csv", index=False)
+        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
     else:
-        performances = pd.read_csv(csv_directory + r"\performances_" + str(future) + ".csv")
+        performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
         performances['Basic_nn'] = predictions
-        performances.to_csv(csv_directory + r"\performances_" + str(future) + ".csv", index=False)
+        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
-    if not os.path.exists(csv_directory + r"\metrics_" + str(future) + ".csv"):
+    if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
         new_row = {'Model': ["Basic_nn"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
                     'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
                     'MAPE': [metric_outputs.get("MAPE")]}
 
         metrics = pd.DataFrame(new_row)
-        metrics.to_csv(csv_directory + r"\metrics_" + str(future) + ".csv", index=False)
+        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     else:
 
-        metrics = pd.read_csv(csv_directory + r"\metrics_" + str(future) + ".csv")
+        metrics = pd.read_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv")
 
         if 'Basic_nn' in metrics['Model'].values:
             metrics.loc[metrics['Model'] == 'Basic_nn', 'RMSE'] = metric_outputs.get("RMSE")
@@ -146,10 +130,10 @@ def make_csvs(csv_directory, predictions, y_test, pred_dates_test):
                         'MAPE': metric_outputs.get("MAPE")}
 
             metrics = metrics.append(new_row, ignore_index=True)
-        metrics.to_csv(csv_directory + r"\metrics_" + str(future) + ".csv", index=False)
+        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
 
 
-def kt_model(hp):
+def bnn_kt_model(hp):
 
     hp_activation = hp.Choice('activation', values=['relu', 'tanh'])
     hp_learning_rate = hp.Float("lr", min_value=1e-4, max_value=1e-2, sampling="log")
@@ -158,7 +142,6 @@ def kt_model(hp):
     hp_neuron_pct = hp.Float('NeuronPct', min_value=1e-3, max_value=1.0, sampling='linear')
     hp_neuron_shrink = hp.Float('NeuronShrink', min_value=1e-3, max_value=1.0, sampling='linear')
     
-    hp_l_layer_1 = hp.Int('l_layer_1', min_value=1, max_value=100, step=10)
     hp_max_neurons = hp.Int('neurons', min_value=10, max_value=200, step=10)
 
     neuron_count = int(hp_neuron_pct * hp_max_neurons)
@@ -181,24 +164,24 @@ def kt_model(hp):
     return model
     
 
-def train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler,
-                model_directory, csv_directory):
+def bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler,
+                model_directory, csv_directory, set_name):
 
     length = X_frame.shape[0]
 
     pred_dates_test = pred_dates[int(length*split) + window:]
 
     y_train = y_data[window:int(length*split)]
-    y_test = y_data[int(length*split):]
+    y_test = y_data[int(length*split) + window:]
 
-    X_train = create_dataset(X_frame[:int(length*split)], window)
-    X_test = create_dataset(X_frame[int(length*split):], window)
+    X_train = bnn_create_dataset(X_frame[:int(length*split)], window)
+    X_test = bnn_create_dataset(X_frame[int(length*split):], window)
 
-    tuner = kt.Hyperband(kt_model, objective='mean_squared_error', max_epochs=epochs, factor=3, 
-                        directory=model_directory + r'\kt_dir', project_name='kt_model_' + str(future), 
+    tuner = kt.Hyperband(bnn_kt_model, objective='mean_absolute_percentage_error', max_epochs=epochs, factor=3, 
+                        directory=model_directory + "/" + set_name + "_kt_dir", project_name='kt_model_' + str(future), 
                         overwrite=True)
 
-    monitor = EarlyStopping(monitor='loss', min_delta=1e-5, patience=5, verbose=0, mode='auto', 
+    monitor = EarlyStopping(monitor='mean_absolute_percentage_error', min_delta=1, patience=5, verbose=0, mode='auto', 
                     restore_best_weights=True)
 
     tuner.search(X_train, y_train, verbose=1, epochs=epochs, validation_split=0.2, batch_size=batch_size,
@@ -208,27 +191,24 @@ def train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred
     model = tuner.hypermodel.build(best_hps)
     history = model.fit(X_train, y_train, verbose=1, epochs=epochs, callbacks=[monitor],
                     batch_size=batch_size, validation_split=0.2)
-    model.save(model_directory + r'\basic_nn_' + str(future))
+    model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
 
     predictions = model.predict(X_test)
     predictions = y_scaler.inverse_transform(predictions).reshape(-1)
     y_test = y_scaler.inverse_transform(y_test).reshape(-1)
 
-    make_csvs(csv_directory, predictions, y_test, pred_dates_test)
+    bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
     print(f"Finished running simulation on future window {0}", future)
 
 
-if __name__=='__main__':
+def bnn_evaluate(window, future, set_name):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
     csv_directory = folder_path + r"\csvs"
 
-    standard_scaling = 1
     epochs = 200
     batch_size = 32
-    future = 0
-    window = 3
     split = 0.7
 
     absl.logging.set_verbosity(absl.logging.ERROR)
@@ -236,10 +216,12 @@ if __name__=='__main__':
 
     try:
 
-        X_frame, y_data, pred_dates, y_scaler, scalers = scaling(csv_directory, future)
+        X_frame, y_data, pred_dates, y_scaler, _ = bnn_scaling(csv_directory, future, set_name)
 
-        train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler, 
-                model_directory, csv_directory)
+        bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler, 
+                model_directory, csv_directory, set_name)
+        
+        print("Finished evaluating basic nn for future {0}".format(future))
 
     except FileNotFoundError:
 
