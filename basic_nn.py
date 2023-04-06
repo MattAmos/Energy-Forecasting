@@ -14,6 +14,7 @@ import time
 import pandas as pd
 import numpy as np
 import keras_tuner as kt
+import matplotlib.pyplot as plt
     
 
 def bnn_get_metrics(predictions, actual):
@@ -96,6 +97,50 @@ def bnn_kt_model(hp):
                 metrics=['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error'])
 
     return model
+
+def bnn_save_plots(history, graphs_directory, set_name, future):
+
+    # list all data in history
+    print(history.history.keys())
+    # summarize history for loss
+
+    graph_names = ["loss", "mae", "mse", "mape"]
+    for name in graph_names:
+        graph_loc = graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_" + name + ".png"
+        if os.path.exists(graph_loc):
+            os.remove(graph_loc)
+
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Basic NN Loss for {0} {1}'.format(set_name, future))
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_loss.png")
+
+    plt.plot(history.history['mean_squared_error'])
+    plt.plot(history.history['val_mean_squared_error'])
+    plt.title('Basic NN MSE for {0} {1}'.format(set_name, future))
+    plt.ylabel('Mean Squared Error')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mse.png")
+
+    plt.plot(history.history['mean_absolute_error'])
+    plt.plot(history.history['val_mean_absolute_error'])
+    plt.title('Basic NN MAE for {0} {1}'.format(set_name, future))
+    plt.ylabel('MAE')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mae.png")
+
+    plt.plot(history.history['mean_absolute_percentage_error'])
+    plt.plot(history.history['val_mean_absolute_percentage_error'])
+    plt.title('Basic NN MAPE for {0} {1}'.format(set_name, future))
+    plt.ylabel('MAPE')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mape.png")
     
 
 def bnn_train_model(future, batch_size, epochs,
@@ -118,6 +163,9 @@ def bnn_train_model(future, batch_size, epochs,
     history = model.fit(X_train, y_train, verbose=1, epochs=epochs, callbacks=[monitor],
                     batch_size=batch_size, validation_split=0.2)
     model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
+
+    graphs_directory = os.getcwd() + "/graphs"
+    bnn_save_plots(history, graphs_directory, set_name, future)
 
     end_time = time.time()
     total_time = start_time - end_time

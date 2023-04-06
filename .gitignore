@@ -3,7 +3,9 @@ models/*
 
 # Ignore all csvs created
 csvs/*.csv
-csvs/*.npy
+
+*.npy
+*.png
 
 # Ignore pycache
 __pycache__

@@ -15,7 +15,7 @@ if __name__=="__main__":
     folder_path = os.getcwd()
     csv_directory = folder_path + r"\csvs"
 
-    for future in futures:
+    for future in futures[:1]:
 
         X_frame, y_data, pred_dates, y_scaler, _ = scaling(csv_directory, future, set_name)
         length = X_frame.shape[0]
