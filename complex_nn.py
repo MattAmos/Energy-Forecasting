@@ -136,6 +136,8 @@ def cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
 
 def cnn_kt_model(hp):
 
+    X = np.load("X_train_3d.npy")
+
     hp_activation = hp.Choice('activation', values=['relu', 'tanh'])
     hp_learning_rate = hp.Float("lr", min_value=1e-4, max_value=1e-2, sampling="log")
     hp_reg = hp.Float("reg", min_value=1e-4, max_value=1e-2, sampling="log")
@@ -150,7 +152,7 @@ def cnn_kt_model(hp):
     layers = 0
 
     model = Sequential()
-    model.add(InputLayer((3, 10)))
+    model.add(InputLayer((X.shape[1], X.shape[2])))
     model.add(LSTM(hp_l_layer_1, return_sequences=True, activity_regularizer=regularizers.l1(hp_reg)))
     model.add(Dropout(hp_dropout))
 
@@ -169,18 +171,13 @@ def cnn_kt_model(hp):
     return model
     
 
-def cnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler,
-                model_directory, csv_directory, set_name):
+def cnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs,
+                model_directory, set_name):
 
     length = X_frame.shape[0]
 
-    pred_dates_test = pred_dates[int(length*split) + window:]
-
     y_train = y_data[window:int(length*split)]
-    y_test = y_data[int(length*split) + window:]
-
     X_train = cnn_create_dataset(X_frame[:int(length*split)], window)
-    X_test = cnn_create_dataset(X_frame[int(length*split):], window)
 
     tuner = kt.Hyperband(cnn_kt_model, objective='mean_absolute_percentage_error', max_epochs=epochs, factor=3, 
                         directory=model_directory + "/" + set_name + "_kt_dir", project_name='kt_model_' + str(future), 
@@ -198,12 +195,29 @@ def cnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, 
                     batch_size=batch_size, validation_split=0.2)
     model.save(model_directory + "/" + set_name + "_Complex_nn_" + str(future))
 
+
+def cnn_predict(window, future, set_name):
+
+    folder_path = os.getcwd()
+    model_directory = folder_path + r"\models"
+    csv_directory = folder_path + r"\csvs"
+
+    X_frame, y_data, pred_dates, y_scaler, _ = cnn_scaling(csv_directory, future, set_name)
+
+    length = X_frame.shape[0]
+    split = 0.7
+
+    pred_dates_test = pred_dates[int(length*split) + window:]
+    y_test = y_data[int(length*split) + window:]
+    X_test = cnn_create_dataset(X_frame[int(length*split):], window)
+
+    model = load_model(model_directory + "/" + set_name + "_Complex_nn_" + str(future))
     predictions = model.predict(X_test)
     predictions = y_scaler.inverse_transform(predictions).reshape(-1)
     y_test = y_scaler.inverse_transform(y_test).reshape(-1)
 
     cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
-    print(f"Finished running simulation on future window {0}", future)
+    print(f"Finished running complex prediction on future window {0}", future)
 
 
 def cnn_evaluate(window, future, set_name):

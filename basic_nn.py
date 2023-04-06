@@ -6,62 +6,15 @@ from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
 
 import absl.logging
-
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import mean_squared_error as mse, r2_score, mean_absolute_error as mae, mean_absolute_percentage_error as mape
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 import os
+import time
 import pandas as pd
 import numpy as np
 import keras_tuner as kt
-
-
-
-
-class BnnFeatureScaler(BaseEstimator, TransformerMixin):
-
-    def fit(self, X, y=None):
-        return self
     
-    def transform(self, X):
-
-        dry = MinMaxScaler(feature_range=(0,1))
-        dew = MinMaxScaler(feature_range=(0,1))
-        wet = MinMaxScaler(feature_range=(0,1))
-        humid = MinMaxScaler(feature_range=(0,1))
-        hour = MinMaxScaler(feature_range=(0,1))
-        prevWeek = MinMaxScaler(feature_range=(0,1))
-        prevDay = MinMaxScaler(feature_range=(0,1))
-        prev24 = MinMaxScaler(feature_range=(0,1))
-
-        X['DryBulb'] = dry.fit_transform(X[['DryBulb']])
-        X['DewPnt'] = dew.fit_transform(X[['DewPnt']])
-        X['WetBulb'] = wet.fit_transform(X[['WetBulb']])
-        X['Humidity'] = humid.fit_transform(X[['Humidity']])
-        X['Hour'] = hour.fit_transform(X[['Hour']])
-        X['PrevWeekSameHour'] = prevWeek.fit_transform(X[['PrevWeekSameHour']])
-        X['PrevDaySameHour'] = prevDay.fit_transform(X[['PrevDaySameHour']])
-        X['Prev24HourAveLoad'] = prev24.fit_transform(X[['Prev24HourAveLoad']])
-
-        return [dry, dew, wet, humid, hour, prevWeek, prevDay, prev24]
-    
-    
-def bnn_create_dataset(input, win_size):
-    
-    np_data = input.copy()
-
-    X = []
-
-    for i in range(len(np_data)-win_size):
-        row = [r for r in np_data[i:i+win_size]]
-        X.append(row)
-
-    return np.array(X)
-
 
 def bnn_get_metrics(predictions, actual):
 
@@ -73,29 +26,9 @@ def bnn_get_metrics(predictions, actual):
 
     metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
     return metrics
-    
-
-def bnn_scaling(csv_directory, future, set_name):
-
-    data = pd.read_csv(csv_directory + "/" + set_name + "_data_" + str(future) + ".csv").drop('Date', axis=1)
-    outputs = pd.read_csv(csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv")
-
-    pipe = Pipeline([('Scaler', BnnFeatureScaler())])
-    scalers = pipe.fit_transform(data)
-
-    pred_dates = outputs['Date']
-
-    y_scaler = MinMaxScaler(feature_range=(0,1))
-
-    y_data = y_scaler.fit_transform(outputs[['SYSLoad']])
-
-    X_frame = np.array(data)
-    y_data = np.array(y_data)
-
-    return X_frame, y_data, pred_dates, y_scaler, scalers
 
 
-def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
+def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time):
 
     metric_outputs = bnn_get_metrics(predictions, y_test)
 
@@ -110,7 +43,7 @@ def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
         new_row = {'Model': ["Basic_nn"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
                     'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
-                    'MAPE': [metric_outputs.get("MAPE")]}
+                    'MAPE': [metric_outputs.get("MAPE")], "TIME": [time]}
 
         metrics = pd.DataFrame(new_row)
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
@@ -124,6 +57,7 @@ def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
             metrics.loc[metrics['Model'] == 'Basic_nn', 'MSE'] = metric_outputs.get("MSE")
             metrics.loc[metrics['Model'] == 'Basic_nn', 'MAE'] = metric_outputs.get("MAE")
             metrics.loc[metrics['Model'] == 'Basic_nn', 'MAPE'] = metric_outputs.get("MAPE")
+            metrics.loc[metrics['Model'] == 'Basic_nn', 'TIME'] = time
         else:
             new_row = {'Model': "Basic_nn", 'RMSE': metric_outputs.get("RMSE"), 'R2': metric_outputs.get("R2"), 
                         'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
@@ -164,18 +98,10 @@ def bnn_kt_model(hp):
     return model
     
 
-def bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler,
-                model_directory, csv_directory, set_name):
-
-    length = X_frame.shape[0]
-
-    pred_dates_test = pred_dates[int(length*split) + window:]
-
-    y_train = y_data[window:int(length*split)]
-    y_test = y_data[int(length*split) + window:]
-
-    X_train = bnn_create_dataset(X_frame[:int(length*split)], window)
-    X_test = bnn_create_dataset(X_frame[int(length*split):], window)
+def bnn_train_model(future, batch_size, epochs,
+                model_directory, set_name, X_train, y_train):
+    
+    start_time = time.time()
 
     tuner = kt.Hyperband(bnn_kt_model, objective='mean_absolute_percentage_error', max_epochs=epochs, factor=3, 
                         directory=model_directory + "/" + set_name + "_kt_dir", project_name='kt_model_' + str(future), 
@@ -184,7 +110,7 @@ def bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, 
     monitor = EarlyStopping(monitor='mean_absolute_percentage_error', min_delta=1, patience=5, verbose=0, mode='auto', 
                     restore_best_weights=True)
 
-    tuner.search(X_train, y_train, verbose=1, epochs=epochs, validation_split=0.2, batch_size=batch_size,
+    tuner.search(X_train, y_train, verbose=0, epochs=epochs, validation_split=0.2, batch_size=batch_size,
                 callbacks=[monitor])
 
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
@@ -193,38 +119,38 @@ def bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, 
                     batch_size=batch_size, validation_split=0.2)
     model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
 
-    predictions = model.predict(X_test)
-    predictions = y_scaler.inverse_transform(predictions).reshape(-1)
-    y_test = y_scaler.inverse_transform(y_test).reshape(-1)
+    end_time = time.time()
+    total_time = start_time - end_time
 
-    bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
-    print(f"Finished running simulation on future window {0}", future)
+    return total_time
 
 
-def bnn_evaluate(window, future, set_name):
+def bnn_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, time):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
     csv_directory = folder_path + r"\csvs"
 
-    epochs = 200
-    batch_size = 32
-    split = 0.7
+    model = load_model(model_directory + "/" + set_name + "_basic_nn_" + str(future))
+    predictions = model.predict(X_test)
+    print(predictions.shape)
+    predictions = y_scaler.inverse_transform(predictions).reshape(-1)
+    y_test = y_scaler.inverse_transform(y_test).reshape(-1)
+
+    bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time)
+    print(f"Finished running basic prediction on future window {0}", future)
+
+
+def bnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size):
+
+    folder_path = os.getcwd()
+    model_directory = folder_path + r"\models"
 
     absl.logging.set_verbosity(absl.logging.ERROR)
     tf.compat.v1.logging.set_verbosity(30)
 
-    try:
-
-        X_frame, y_data, pred_dates, y_scaler, _ = bnn_scaling(csv_directory, future, set_name)
-
-        bnn_train_model(X_frame, y_data, window, future, batch_size, split, epochs, pred_dates, y_scaler, 
-                model_directory, csv_directory, set_name)
-        
-        print("Finished evaluating basic nn for future {0}".format(future))
-
-    except FileNotFoundError:
-
-        print("Files are not present in \"csvs\" directory.")
-        print("Ensure they are before continuing")
+    bnn_train_model(future, batch_size, epochs,
+            model_directory, set_name, X_train, y_train)
+    
+    print("Finished evaluating basic nn for future {0}".format(future))
     
