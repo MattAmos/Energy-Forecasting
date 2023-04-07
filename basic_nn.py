@@ -7,6 +7,7 @@ from tensorflow.keras.optimizers import Adam
 
 import absl.logging
 from sklearn.metrics import mean_squared_error as mse, r2_score, mean_absolute_error as mae, mean_absolute_percentage_error as mape
+from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 import os
@@ -27,6 +28,13 @@ def bnn_get_metrics(predictions, actual):
 
     metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
     return metrics
+
+
+def bnn_cross_val_metrics(total_metrics, set_name, future):
+
+    csv_directory = os.getcwd() + "/csvs"
+    df = pd.DataFrame(total_metrics)
+    df.to_csv(csv_directory + "/" + set_name + "_cv_metrics_" + str(future) + ".csv", index=False)
 
 
 def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time):
@@ -98,53 +106,29 @@ def bnn_kt_model(hp):
 
     return model
 
+
 def bnn_save_plots(history, graphs_directory, set_name, future):
 
-    # list all data in history
-    print(history.history.keys())
-    # summarize history for loss
-
-    graph_names = ["loss", "mae", "mse", "mape"]
-    for name in graph_names:
+    graph_names = {"Loss": "loss", "MAE": "mean_absolute_error", 
+                   "MSE": "mean_squared_error", "MAPE": "mean_absolute_percentage_error"}
+    
+    for name, value in graph_names.items():
         graph_loc = graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_" + name + ".png"
         if os.path.exists(graph_loc):
             os.remove(graph_loc)
 
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('Basic NN Loss for {0} {1}'.format(set_name, future))
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_loss.png")
-
-    plt.plot(history.history['mean_squared_error'])
-    plt.plot(history.history['val_mean_squared_error'])
-    plt.title('Basic NN MSE for {0} {1}'.format(set_name, future))
-    plt.ylabel('Mean Squared Error')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mse.png")
-
-    plt.plot(history.history['mean_absolute_error'])
-    plt.plot(history.history['val_mean_absolute_error'])
-    plt.title('Basic NN MAE for {0} {1}'.format(set_name, future))
-    plt.ylabel('MAE')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mae.png")
-
-    plt.plot(history.history['mean_absolute_percentage_error'])
-    plt.plot(history.history['val_mean_absolute_percentage_error'])
-    plt.title('Basic NN MAPE for {0} {1}'.format(set_name, future))
-    plt.ylabel('MAPE')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_mape.png")
+        val_name = "val_" + value
+        plt.plot(history.history[value])
+        plt.plot(history.history[val_name])
+        plt.title('Basic NN {0} for {1} {2}'.format(name, set_name, future))
+        plt.ylabel(name)
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.savefig(graphs_directory + "/" + set_name + "_basic_nn_" + str(future) + "_" + name + ".png")
     
 
 def bnn_train_model(future, batch_size, epochs,
-                model_directory, set_name, X_train, y_train):
+                model_directory, set_name, X_train, y_train, y_scaler):
     
     start_time = time.time()
 
@@ -160,15 +144,39 @@ def bnn_train_model(future, batch_size, epochs,
 
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
     model = tuner.hypermodel.build(best_hps)
-    history = model.fit(X_train, y_train, verbose=1, epochs=epochs, callbacks=[monitor],
-                    batch_size=batch_size, validation_split=0.2)
-    model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
 
-    graphs_directory = os.getcwd() + "/graphs"
-    bnn_save_plots(history, graphs_directory, set_name, future)
+    # Split on a 3 monthly basis
+    tss = TimeSeriesSplit(n_splits=10, test_size=48*90, gap=0)
+    fold = 0
+    total_metrics = {}
+
+    for train_idx, val_idx in tss.split(X_train, y_train):
+
+        fold_name = "Fold_" + str(fold)
+        X_t = X_train[train_idx]
+        X_v = X_train[val_idx]
+        y_t = y_train[train_idx]
+        y_v = y_train[val_idx]
+        
+        if fold == 9:
+            history = model.fit(X_t, y_t, verbose=1, epochs=epochs, callbacks=[monitor],
+                    batch_size=batch_size, validation_data=(X_v, y_v))
+            graphs_directory = os.getcwd() + "/graphs"
+            bnn_save_plots(history, graphs_directory, set_name, future)
+            model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
+        
+        model.fit(X_t, y_t, verbose=1, epochs=epochs, callbacks=[monitor],
+                    batch_size=batch_size)
+        preds = model.predict(X_v)
+        preds = y_scaler.inverse_transform(preds)
+        metrics = bnn_get_metrics(preds, y_v)
+        total_metrics[fold_name] = metrics
+
+        fold += 1
 
     end_time = time.time()
     total_time = start_time - end_time
+    bnn_cross_val_metrics(total_metrics, set_name, future)
 
     return total_time
 
@@ -189,7 +197,7 @@ def bnn_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, tim
     print(f"Finished running basic prediction on future window {0}", future)
 
 
-def bnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size):
+def bnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size, y_scaler):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -198,7 +206,7 @@ def bnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size):
     tf.compat.v1.logging.set_verbosity(30)
 
     bnn_train_model(future, batch_size, epochs,
-            model_directory, set_name, X_train, y_train)
+            model_directory, set_name, X_train, y_train, y_scaler)
     
     print("Finished evaluating basic nn for future {0}".format(future))
     
