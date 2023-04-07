@@ -75,7 +75,7 @@ def cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
                         'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
                         'MAPE': metric_outputs.get("MAPE")}
 
-            metrics = metrics.append(new_row, ignore_index=True)
+            metrics.loc[len(metrics)] = new_row
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
 
 

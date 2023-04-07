@@ -2,6 +2,7 @@ import absl.logging
 from sklearn.metrics import mean_squared_error as mse, r2_score, mean_absolute_error as mae, mean_absolute_percentage_error as mape
 from sklearn.model_selection import TimeSeriesSplit
 from skopt import BayesSearchCV
+from skopt import dump, load
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 import os
@@ -67,16 +68,23 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
                         'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
                         'MAPE': metric_outputs.get("MAPE")}
 
-            metrics = metrics.append(new_row, ignore_index=True)
+            metrics.loc[len(metrics)] = new_row
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     
 
 def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train, y_scaler):
     
     start_time = time.time()
+    split = 0.9
 
-    tss = TimeSeriesSplit(n_splits=10, test_size=48*90, gap=0)
-    estimator = xgb.XGBRegressor(base_score=0.5, booster='gbtree',    
+    length = X_train.shape[0]
+    X_train_temp = X_train[:int(length * split), :]
+    y_train_temp = y_train[:int(length * split), :]
+    X_val = X_train[int(length * split):, :]
+    y_val = y_train[int(length * split):, :]
+
+    tss = TimeSeriesSplit(n_splits=5, test_size=48*90, gap=0)
+    estimator = xgb.XGBRegressor(booster='gbtree',    
             early_stopping_rounds=50,
             objective='reg:squarederror',
             verbosity=0)
@@ -85,16 +93,12 @@ def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train,
         "learning_rate": (0.01, 1.0, "log-uniform"),
         "min_child_weight": (0, 10),
         "max_depth": (1, 50),
-        "max_delta_step": (0, 10),
         "subsample": (0.01, 1.0, "uniform"),
         "colsample_bytree": (0.01, 1.0, "log-uniform"),
-        "colsample_bylevel": (0.01, 1.0, "log-uniform"),
-        "reg_lambda": (1e-9, 1000, "log-uniform"),
+        "reg_lambda": (1e-9, 1.0, "log-uniform"),
         "reg_alpha": (1e-9, 1.0, "log-uniform"),
         "gamma": (1e-9, 0.5, "log-uniform"),
-        "min_child_weight": (0, 5),
         "n_estimators": (5, 5000),
-        "scale_pos_weight": (1e-6, 500, "log-uniform"),
     }
 
     model = BayesSearchCV(
@@ -108,35 +112,11 @@ def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train,
         refit=True,
     )
 
-    model.fit(X_train, y_train)
-    model.save_model(model_directory + "/" + set_name + "_xgb_" + str(future) + ".txt")
-
-    model = xgb.XGBRegressor()
-    model.load_model(model_directory + "/" + set_name + "_xgb_" + str(future) + ".txt")
-
-    fold = 0
-    total_metrics = {}
-
-    for train_idx, val_idx in tss.split(X_train, y_train):
-
-        fold_name = "Fold_" + str(fold)
-        X_t = X_train[train_idx]
-        X_v = X_train[val_idx]
-        y_t = y_train[train_idx]
-        y_v = y_train[val_idx]
-        
-        model.fit(X_t, y_t,  verbosity=0)
-        preds = model.predict(X_v)
-        preds = y_scaler.inverse_transform(preds)
-        metrics = xgb_get_metrics(preds, y_v, 1)
-        total_metrics[fold_name] = metrics
-
-        fold += 1
+    model = model.fit(X_train_temp, y_train_temp, eval_set=[(X_val, y_val)], verbose=False)
+    dump(model, model_directory + "/" + set_name + "_xgb_" + str(future) + ".pkl")
 
     end_time = time.time()
     total_time = start_time - end_time
-    xgb_cross_val_metrics(total_metrics, set_name, future)
-    model.save_model(model_directory + "/" + set_name + "_xgb_" + str(future) + ".txt")
 
     return total_time
 
@@ -147,15 +127,14 @@ def xgb_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, tim
     model_directory = folder_path + r"\models"
     csv_directory = folder_path + r"\csvs"
 
-    model = xgb.XGBRegressor()
-    model.load_model(model_directory + "/" + set_name + "_xgb_" + str(future) + ".txt")
-    predictions = model.predict(X_test)
+    model = load(model_directory + "/" + set_name + "_xgb_" + str(future) + ".pkl")
+    predictions = model.predict(X_test).reshape(-1, 1)
     print(predictions.shape)
-    predictions = y_scaler.inverse_transform(predictions).reshape(-1)
-    y_test = y_scaler.inverse_transform(y_test).reshape(-1)
+    predictions = y_scaler.inverse_transform(predictions)
+    y_test = y_scaler.inverse_transform(y_test)
 
     xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time)
-    print(f"Finished running basic prediction on future window {0}", future)
+    print(f"Finished running xgb prediction on future window {0}", future)
 
 
 def xgb_evaluate(future, set_name, X_train, y_train, epochs, y_scaler):
