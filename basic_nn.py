@@ -18,15 +18,17 @@ import keras_tuner as kt
 import matplotlib.pyplot as plt
     
 
-def bnn_get_metrics(predictions, actual):
+def bnn_get_metrics(predictions, actual, cv):
 
     MSE = mse(actual, predictions, squared=True)
     MAE = mae(actual, predictions)
     MAPE = mape(actual, predictions)
     RMSE = mse(actual, predictions, squared=False)
     R2 = r2_score(actual, predictions)
-
-    metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
+    if cv:
+        metrics = {'BNN_RMSE': RMSE, 'BNN_R2': R2, 'BNN_MSE': MSE, 'BNN_MAE': MAE, 'BNN_MAPE': MAPE}
+    else:
+        metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
     return metrics
 
 
@@ -39,7 +41,7 @@ def bnn_cross_val_metrics(total_metrics, set_name, future):
 
 def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time):
 
-    metric_outputs = bnn_get_metrics(predictions, y_test)
+    metric_outputs = bnn_get_metrics(predictions, y_test, 0)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "Basic_nn": predictions})
@@ -165,11 +167,11 @@ def bnn_train_model(future, batch_size, epochs,
             bnn_save_plots(history, graphs_directory, set_name, future)
             model.save(model_directory + "/" + set_name + "_basic_nn_" + str(future))
         
-        model.fit(X_t, y_t, verbose=1, epochs=epochs, callbacks=[monitor],
+        model.fit(X_t, y_t, verbose=0, epochs=epochs, callbacks=[monitor],
                     batch_size=batch_size)
-        preds = model.predict(X_v)
+        preds = model.predict(X_v, verbose=0)
         preds = y_scaler.inverse_transform(preds)
-        metrics = bnn_get_metrics(preds, y_v)
+        metrics = bnn_get_metrics(preds, y_v, 1)
         total_metrics[fold_name] = metrics
 
         fold += 1
