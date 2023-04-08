@@ -1,4 +1,3 @@
-import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import InputLayer, LSTM, Dense, Conv1D, Flatten, GRU, Dropout
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
