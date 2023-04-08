@@ -2,7 +2,7 @@
 models/*
 
 # Ignore all csvs created
-csvs/*.csv
+# csvs/*.csv
 
 *.npy
 *.png
