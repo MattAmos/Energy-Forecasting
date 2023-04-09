@@ -3,36 +3,19 @@ from sklearn.decomposition import PCA
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
+from statsmodels.tsa.seasonal import seasonal_decompose
+
 import pandas as pd
 import numpy as np
 import os
 
-class FeatureScaler(BaseEstimator, TransformerMixin):
+from simple_regression import *
 
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X):
-
-        dry = MinMaxScaler(feature_range=(0,1))
-        dew = MinMaxScaler(feature_range=(0,1))
-        wet = MinMaxScaler(feature_range=(0,1))
-        humid = MinMaxScaler(feature_range=(0,1))
-        hour = MinMaxScaler(feature_range=(0,1))
-        prevWeek = MinMaxScaler(feature_range=(0,1))
-        prevDay = MinMaxScaler(feature_range=(0,1))
-        prev24 = MinMaxScaler(feature_range=(0,1))
-
-        X['DryBulb'] = dry.fit_transform(X[['DryBulb']])
-        X['DewPnt'] = dew.fit_transform(X[['DewPnt']])
-        X['WetBulb'] = wet.fit_transform(X[['WetBulb']])
-        X['Humidity'] = humid.fit_transform(X[['Humidity']])
-        X['Hour'] = hour.fit_transform(X[['Hour']])
-        X['PrevWeekSameHour'] = prevWeek.fit_transform(X[['PrevWeekSameHour']])
-        X['PrevDaySameHour'] = prevDay.fit_transform(X[['PrevDaySameHour']])
-        X['Prev24HourAveLoad'] = prev24.fit_transform(X[['Prev24HourAveLoad']])
-
-        return [dry, dew, wet, humid, hour, prevWeek, prevDay, prev24]
+def collapse_columns(data):
+    data = data.copy()
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.to_series().apply(lambda x: "__".join(x))
+    return data
     
 def create_dataset_2d(input, win_size):
     
@@ -63,47 +46,111 @@ def create_dataset_3d(input, win_size):
     return np.array(X)
 
 
-def scaling(csv_directory, future, set_name):
+def finalise_data(data, outputs, target, best_results):
 
-    data = pd.read_csv(csv_directory + "/" + set_name + "_data_" + str(future) + ".csv").drop('Date', axis=1)
-    outputs = pd.read_csv(csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv")
+    pca_dim = best_results.get("pca_dimensions")
+    y_scaler = None
+    
+    if best_results.get("scaler") == "minmax":
+        X_scaler = MinMaxScaler(feature_range=(0,1))
+        y_scaler = MinMaxScaler(feature_range=(0,1))
+        data = X_scaler.fit_transform(data)
+        outputs = y_scaler.fit_transform(outputs)
 
-    pipe = Pipeline([('Scaler', FeatureScaler())])
-    scalers = pipe.fit_transform(data)
+    elif best_results.get("scaler") == "standard":
+        X_scaler = StandardScaler(feature_range=(0,1))
+        y_scaler = StandardScaler(feature_range=(0,1))
+        data = X_scaler.fit_transform(data)
+        outputs = y_scaler.fit_transform(outputs)
 
-    pred_dates = outputs['Date']
-
-    y_scaler = MinMaxScaler(feature_range=(0,1))
-
-    y_data = y_scaler.fit_transform(outputs[['SYSLoad']])
+    if pca_dim == 0:
+        pca = PCA()
+        data = pca.fit_transform(data)
+    elif pca_dim != "disable":
+        pca = PCA(n_components=pca_dim)
+        data = pca.fit_transform(data)
 
     X_frame = np.array(data)
-    y_data = np.array(y_data)
+    y_data = np.array(outputs[target])
+    pred_dates = outputs['Date']
 
-    return X_frame, y_data, pred_dates, y_scaler, scalers
+    return X_frame, y_data, pred_dates, y_scaler
 
 
-def feature_adder(data, holidays, future, csv_directory, set_name):
+def data_cleaning_pipeline(data_in, outputs_in, cleaning_parameters):
 
-    data['Holiday'] = data.index.isin(holidays['Date']).astype(int)
-    data['PrevDaySameHour'] = data['SYSLoad'].copy().shift(48)
-    data['PrevWeekSameHour'] = data['SYSLoad'].copy().shift(48*7)
-    data['Prev24HourAveLoad'] = data['SYSLoad'].copy().rolling(window=48*7, min_periods=1).mean()
+    best_results = {"RMSE": 1e10, "scaler": None, "enable_pca": None, "pca_dimensions": None}
+
+    for scale_type in cleaning_parameters.get('scalers'):
+            for pca_dim in cleaning_parameters.get('pca_dimensions'):
+
+                data = data_in.copy()
+                outputs = outputs_in.copy()
+
+                if scale_type == 'minmax':
+                    X_scaler = MinMaxScaler(feature_range=(0,1))
+                    y_scaler = MinMaxScaler(feature_range=(0,1))
+                    data = X_scaler.fit_transform(data)
+                    outputs = y_scaler.fit_transform(outputs)
+
+                elif scale_type == 'standard':
+                    X_scaler = StandardScaler(feature_range=(0,1))
+                    y_scaler = StandardScaler(feature_range=(0,1))
+                    data = X_scaler.fit_transform(data)
+                    outputs = y_scaler.fit_transform(outputs)
+
+                if pca_dim == 0:
+                    pca = PCA()
+                    data = pca.fit_transform(data)
+                elif pca_dim != "disable":
+                    pca = PCA(n_components=pca_dim)
+                    data = pca.fit_transform(data)
+                
+                rmse = build_simple_model(data, outputs)
+                if rmse < best_results.get("RMSE"):
+                    best_results["RMSE"] = rmse
+                    best_results["pca_dimensions"] = pca_dim
+                    best_results["scaler"] = scale_type
+
+    return best_results
+
+
+
+
+def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  set_name):
+
+    data = pd.read_excel(file_path).set_index("Date")
+    data = collapse_columns(data)
+
+    data['PrevDaySameHour'] = data[target].copy().shift(epd)
+    data['PrevWeekSameHour'] = data[target].copy().shift(epd*7)
+    data['Prev24HourAveLoad'] = data[target].copy().rolling(window=epd*7, min_periods=1).mean()
     data['Weekday'] = data.index.dayofweek
     data.loc[(data['Weekday'] < 5) & (data['Holiday'] == 0), 'IsWorkingDay'] = 1
     data.loc[(data['Weekday'] > 4) | (data['Holiday'] == 1), 'IsWorkingDay'] = 0
-    data = data.dropna(how='any', axis='rows')
 
-    y = data['SYSLoad'].shift(-48*future).reset_index(drop=True)
+    dec_daily = seasonal_decompose(data[target], model=trend_type, period=epd)
+    dec_weekly = seasonal_decompose(data[target], model=trend_type, period=epd*7)
+
+    data['IntraDayTrend'] = dec_daily.trend
+    data['IntraDaySeasonal'] = dec_daily.seasonal
+    data['IntraWeekTrend'] = dec_weekly.trend
+    data['IntraWeekSeasonal'] = dec_weekly.seasonal
+
+    # develop an imputer to replace values that don't exist somehow???
+
+    data = data.dropna(how='any', axis='rows')
+    y = data[target].shift(-epd*future).reset_index(drop=True)
     y = y.dropna(how='any', axis='rows')
 
-    future_dates = pd.Series(data.index[future*48:])
-    outputs = pd.DataFrame({"Date": future_dates, "SYSLoad": y})
+    future_dates = pd.Series(data.index[future*epd:])
+    outputs = pd.DataFrame({"Date": future_dates, "{0}".format(target): y})
 
+    # future > 10 needs addressing - it is not yet implemented
     if future > 10:
         data = data[['DryBulb', 'DewPnt', 'Prev5DayHighAve', 'Prev5DayLowAve', 'Hour', 'Weekday', 'IsWorkingDay']]
     else:
-        data = data[['DryBulb', 'DewPnt', 'WetBulb','Humidity','Hour', 'Weekday', 'IsWorkingDay', 'PrevWeekSameHour', 'PrevDaySameHour', 'Prev24HourAveLoad']]
+        data = data.drop("{0}".format(target), axis=1)
 
     data_name = csv_directory + "/" + set_name + "_data_" + str(future) + ".csv"
     output_name = csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv"
@@ -113,6 +160,8 @@ def feature_adder(data, holidays, future, csv_directory, set_name):
 
     print(f"Saved future window {0} to csvs", future)
 
+    return data, outputs
+    
 
 
 if __name__=="__main__":
@@ -125,9 +174,10 @@ if __name__=="__main__":
         data = pd.read_excel(csv_directory + r'\ausdata.xlsx').set_index("Date")
         holidays = pd.read_excel(csv_directory + r'\Holidays2.xls')
 
-        feature_adder(data, holidays, 0, csv_directory, "matlab")
-        feature_adder(data, holidays, 1, csv_directory, "matlab")
-        feature_adder(data, holidays, 7, csv_directory, "matlab")
+        data['Holiday'] = data.index.isin(holidays['Date']).astype(int)
+
+        file_name = csv_directory + "/matlab_temp.xlsx"
+        data.to_excel(file_name)
     
     except FileNotFoundError:
 
