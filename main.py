@@ -21,24 +21,25 @@ if __name__=="__main__":
     target = "SYSLoad"
     trend_type = "Additive"
     epd = 48
-    partition = 10000
+    partition = 5000
+    data_epochs = 10
 
     # Don't know what else to put in cleaning parameters tbh
     # put more research into this area
     cleaning_parameters = {
         # This is seriously jank. It works for now, but golly...
-        'pca_dimensions': [None, 1, 3, 5, math.inf],
+        'pca_dimensions': [None, math.inf, -math.inf],
         'scalers': ['standard', 'minmax']
     }
 
     window = 10
-    split = 0.7
+    split = 0.8
     epochs = 100
     batch_size = 32
 
     futures = [0, 1, 7]
 
-    for future in futures:
+    for future in futures[:1]:
 
         # This pipeline only currently works when everything is being enabled; need to modularise
         # Predictions from training from cleaning
@@ -50,19 +51,25 @@ if __name__=="__main__":
             # Decide on exactly what size this partition should be
             # Essentially this grid search is shit and has to be optimized later on down the track
             # It'll just get the job done for now
-            best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target)
+            best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target, split, data_epochs, batch_size, csv_directory)
 
         else:
             # need to figure out how to convert this over to dictionary form to feed into finalise data
-            if os.path.exists(csv_directory + "/best_data_parameters.csv"):
+            if os.path.exists(csv_directory + "/best_data_parameters.csv") \
+                    and os.path.exists(csv_directory + "/" + set_name + "_data_" + str(future) + ".csv") \
+                    and os.path.exists(csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv"):
+                
                 best_results = pd.read_csv(csv_directory + "/best_data_parameters.csv").to_dict('index')
+                best_results = best_results.get(0)
+                data, outputs = load_datasets(csv_directory, set_name, future)
+
             else:
                 data, outputs = feature_adder(csv_directory, file_path, target, trend_type, future, epd,  set_name)
 
                 # Decide on exactly what size this partition should be
                 # Essentially this grid search is shit and has to be optimized later on down the track
                 # It'll just get the job done for now
-                best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target)
+                best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target, split, data_epochs, batch_size, csv_directory)
 
         X_frame, y_data, pred_dates, y_scaler = finalise_data(data, outputs, target, best_results)
         length = X_frame.shape[0]

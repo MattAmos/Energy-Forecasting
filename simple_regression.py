@@ -42,7 +42,7 @@ def train_simple_model(model, X_frame, y_frame, split, data_epochs, batch_size, 
     y_test = y_frame[int(length*split):]
 
     model.fit(X_train, y_train, verbose=0, epochs=data_epochs,
-                    batch_size=batch_size, validation_size=0.2)
+                    batch_size=batch_size, validation_split=0.2)
     preds = model.predict(X_test, verbose=0)
     preds = y_scaler.inverse_transform(preds)
     y_test = y_scaler.inverse_transform(y_test)
