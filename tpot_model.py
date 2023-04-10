@@ -5,9 +5,10 @@ from skopt import dump, load
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 import os
-import time
 import pandas as pd
     
+# 90% of this file is not needed, since it should be within the generated model export
+# Going to have to figure out exactly how that part is done, tbh
 
 def tpot_get_metrics(predictions, actual, cv):
 
@@ -70,19 +71,12 @@ def tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name
     
 
 def tpot_train_model(future, model_directory, set_name, X_train, y_train):
-    
-    start_time = time.time()
 
     model = TPOTRegressor(early_stop=5, verbosity=0, max_time_mins=300, cv=10)
     model.fit(X_train, y_train)
     model.export(model_directory + "/" + set_name + "_tpot_" + str(future) + ".py")
 
     print("Completed generating tpot model")
-
-    end_time = time.time()
-    total_time = start_time - end_time
-
-    return total_time
 
 
 def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, time):

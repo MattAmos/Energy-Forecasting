@@ -6,7 +6,6 @@ from skopt import dump, load
 from statsmodels.tsa.seasonal import seasonal_decompose
 
 import os
-import time
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -33,7 +32,7 @@ def xgb_cross_val_metrics(total_metrics, set_name, future):
     df.to_csv(csv_directory + "/" + set_name + "_cv_metrics_" + str(future) + ".csv", index=False)
 
 
-def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time):
+def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
 
     metric_outputs = xgb_get_metrics(predictions, y_test, 0)
 
@@ -48,7 +47,7 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
         new_row = {'Model': ["xgb"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
                     'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
-                    'MAPE': [metric_outputs.get("MAPE")], "TIME": [time]}
+                    'MAPE': [metric_outputs.get("MAPE")]}
 
         metrics = pd.DataFrame(new_row)
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
@@ -62,7 +61,6 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
             metrics.loc[metrics['Model'] == 'xgb', 'MSE'] = metric_outputs.get("MSE")
             metrics.loc[metrics['Model'] == 'xgb', 'MAE'] = metric_outputs.get("MAE")
             metrics.loc[metrics['Model'] == 'xgb', 'MAPE'] = metric_outputs.get("MAPE")
-            metrics.loc[metrics['Model'] == 'xgb', 'TIME'] = time
         else:
             new_row = {'Model': "xgb", 'RMSE': metric_outputs.get("RMSE"), 'R2': metric_outputs.get("R2"), 
                         'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
@@ -72,9 +70,8 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     
 
-def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train, y_scaler):
+def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train, epd):
     
-    start_time = time.time()
     split = 0.9
 
     length = X_train.shape[0]
@@ -83,7 +80,7 @@ def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train,
     X_val = X_train[int(length * split):, :]
     y_val = y_train[int(length * split):, :]
 
-    tss = TimeSeriesSplit(n_splits=5, test_size=48*90, gap=0)
+    tss = TimeSeriesSplit(n_splits=5, test_size=epd*90, gap=0)
     estimator = xgb.XGBRegressor(booster='gbtree',    
             early_stopping_rounds=50,
             objective='reg:squarederror',
@@ -115,13 +112,8 @@ def xgb_train_model(future, epochs, model_directory, set_name, X_train, y_train,
     model = model.fit(X_train_temp, y_train_temp, eval_set=[(X_val, y_val)], verbose=False)
     dump(model, model_directory + "/" + set_name + "_xgb_" + str(future) + ".pkl")
 
-    end_time = time.time()
-    total_time = start_time - end_time
 
-    return total_time
-
-
-def xgb_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, time):
+def xgb_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -133,11 +125,11 @@ def xgb_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, tim
     predictions = y_scaler.inverse_transform(predictions)
     y_test = y_scaler.inverse_transform(y_test)
 
-    xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time)
+    xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
     print(f"Finished running xgb prediction on future window {0}", future)
 
 
-def xgb_evaluate(future, set_name, X_train, y_train, epochs, y_scaler):
+def xgb_evaluate(future, set_name, X_train, y_train, epochs, epd):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -145,7 +137,7 @@ def xgb_evaluate(future, set_name, X_train, y_train, epochs, y_scaler):
     absl.logging.set_verbosity(absl.logging.ERROR)
 
     xgb_train_model(future, epochs,
-            model_directory, set_name, X_train, y_train, y_scaler)
+            model_directory, set_name, X_train, y_train, epd)
     
     print("Finished evaluating basic for future {0}".format(future))
     

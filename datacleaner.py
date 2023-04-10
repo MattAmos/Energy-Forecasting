@@ -8,6 +8,7 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 import pandas as pd
 import numpy as np
 import os
+import math
 
 from simple_regression import *
 
@@ -66,7 +67,7 @@ def finalise_data(data, outputs, target, best_results):
     if pca_dim == 0:
         pca = PCA()
         data = pca.fit_transform(data)
-    elif pca_dim != "disable":
+    elif pca_dim != math.inf:
         pca = PCA(n_components=pca_dim)
         data = pca.fit_transform(data)
 
@@ -77,15 +78,16 @@ def finalise_data(data, outputs, target, best_results):
     return X_frame, y_data, pred_dates, y_scaler
 
 
-def data_cleaning_pipeline(data_in, outputs_in, cleaning_parameters):
+def data_cleaning_pipeline(data_in, outputs_in, cleaning_parameters, target):
 
-    best_results = {"RMSE": 1e10, "scaler": None, "enable_pca": None, "pca_dimensions": None}
+    best_results = {"MSE": [math.inf], "scaler": [None], "pca_dimensions": [None]}
+    model = build_simple_model()
 
     for scale_type in cleaning_parameters.get('scalers'):
             for pca_dim in cleaning_parameters.get('pca_dimensions'):
 
                 data = data_in.copy()
-                outputs = outputs_in.copy()
+                outputs = outputs_in[target].copy()
 
                 if scale_type == 'minmax':
                     X_scaler = MinMaxScaler(feature_range=(0,1))
@@ -102,15 +104,18 @@ def data_cleaning_pipeline(data_in, outputs_in, cleaning_parameters):
                 if pca_dim == 0:
                     pca = PCA()
                     data = pca.fit_transform(data)
-                elif pca_dim != "disable":
+                elif pca_dim != math.inf:
                     pca = PCA(n_components=pca_dim)
                     data = pca.fit_transform(data)
                 
-                rmse = build_simple_model(data, outputs)
-                if rmse < best_results.get("RMSE"):
-                    best_results["RMSE"] = rmse
-                    best_results["pca_dimensions"] = pca_dim
-                    best_results["scaler"] = scale_type
+                mse = train_simple_model(model, np.array(data), np.array(outputs))
+                if mse < best_results.get("MSE"):
+                    best_results["MSE"][0] = mse
+                    best_results["pca_dimensions"][0] = pca_dim
+                    best_results["scaler"][0] = scale_type
+
+    results_data = pd.DataFrame.from_dict(best_results)
+    results_data.to_csv(csv_directory + "/best_data_parameters.csv", index=False)
 
     return best_results
 
@@ -136,8 +141,6 @@ def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  se
     data['IntraDaySeasonal'] = dec_daily.seasonal
     data['IntraWeekTrend'] = dec_weekly.trend
     data['IntraWeekSeasonal'] = dec_weekly.seasonal
-
-    # develop an imputer to replace values that don't exist somehow???
 
     data = data.dropna(how='any', axis='rows')
     y = data[target].shift(-epd*future).reset_index(drop=True)

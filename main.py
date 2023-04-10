@@ -1,3 +1,4 @@
+import math
 from datacleaner import *
 from basic_nn import *
 from complex_nn import *
@@ -26,8 +27,8 @@ if __name__=="__main__":
     # put more research into this area
     cleaning_parameters = {
         # This is seriously jank. It works for now, but golly...
-        'pca_dimensions': [None, 1, 3, 5, "disable"],
-        'scalers': ['standard', 'minmax', 'none']
+        'pca_dimensions': [None, 1, 3, 5, math.inf],
+        'scalers': ['standard', 'minmax']
     }
 
     window = 10
@@ -45,13 +46,25 @@ if __name__=="__main__":
         if cleaning:
 
             data, outputs = feature_adder(csv_directory, file_path, target, trend_type, future, epd,  set_name)
-            
+
             # Decide on exactly what size this partition should be
             # Essentially this grid search is shit and has to be optimized later on down the track
             # It'll just get the job done for now
-            best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters)
-            X_frame, y_data, pred_dates, y_scaler = finalise_data(data, outputs, target, best_results)
+            best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target)
 
+        else:
+            # need to figure out how to convert this over to dictionary form to feed into finalise data
+            if os.path.exists(csv_directory + "/best_data_parameters.csv"):
+                best_results = pd.read_csv(csv_directory + "/best_data_parameters.csv").to_dict('index')
+            else:
+                data, outputs = feature_adder(csv_directory, file_path, target, trend_type, future, epd,  set_name)
+
+                # Decide on exactly what size this partition should be
+                # Essentially this grid search is shit and has to be optimized later on down the track
+                # It'll just get the job done for now
+                best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target)
+
+        X_frame, y_data, pred_dates, y_scaler = finalise_data(data, outputs, target, best_results)
         length = X_frame.shape[0]
 
         pred_dates_test = pred_dates[int(length*split) + window:]
@@ -68,20 +81,20 @@ if __name__=="__main__":
 
             np.save("X_train_3d.npy", X_train_3d)
 
-            bnn_time = bnn_evaluate(future, set_name, X_train_2d, y_train, epochs, batch_size, y_scaler)
-            cnn_time = cnn_evaluate(future, set_name, X_train_3d, y_train, epochs, batch_size, y_scaler)
-            xgb_time = xgb_evaluate(future, set_name, X_train_2d, y_train, epochs, y_scaler)
-            rf_time = rf_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), epochs, y_scaler)
+            bnn_evaluate(future, set_name, X_train_2d, y_train, epochs, batch_size, y_scaler, epd)
+            cnn_evaluate(future, set_name, X_train_3d, y_train, epochs, batch_size, y_scaler, epd)
+            xgb_evaluate(future, set_name, X_train_2d, y_train, epochs, epd)
+            rf_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), epochs, epd)
+            tpot_evaluate(future, set_name, X_train_2d, y_train.reshape(-1))
 
-        # There is going to be a bug with passing in time values if you do not train: will need fixing
         if predicting:
 
-            bnn_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler, bnn_time)
-            cnn_predict(future, set_name, pred_dates_test, X_test_3d, y_test, y_scaler, cnn_time)
-            xgb_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler, xgb_time)
-            rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler, rf_time)
+            bnn_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
+            cnn_predict(future, set_name, pred_dates_test, X_test_3d, y_test, y_scaler)
+            xgb_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
+            rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
 
             # Making tpot predictions has not yet been implemented
-            tpot_time = tpot_evaluate(future, set_name, X_train_2d, y_train.reshape(-1))
 
-        os.remove("X_train_3d.npy")
+        if os.path.exists("X_train_3d.npy"):
+            os.remove("X_train_3d.npy")
