@@ -38,10 +38,11 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
 
     if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "xgb": predictions})
+        performances = performances.iloc[-1000:,:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
     else:
         performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['xgb'] = predictions
+        performances['xgb'] = predictions[-1000:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
@@ -121,7 +122,6 @@ def xgb_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
 
     model = load(model_directory + "/" + set_name + "_xgb_" + str(future) + ".pkl")
     predictions = model.predict(X_test).reshape(-1, 1)
-    print(predictions.shape)
     predictions = y_scaler.inverse_transform(predictions)
     y_test = y_scaler.inverse_transform(y_test)
 

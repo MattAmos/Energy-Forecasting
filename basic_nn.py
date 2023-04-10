@@ -44,10 +44,11 @@ def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
 
     if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "Basic_nn": predictions})
+        performances = performances.iloc[-1000:,:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
     else:
         performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['Basic_nn'] = predictions
+        performances['Basic_nn'] = predictions[-1000:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
@@ -157,7 +158,7 @@ def bnn_train_model(future, batch_size, epochs,
         y_v = y_train[val_idx]
         
         if fold == 9:
-            history = model.fit(X_t, y_t, verbose=1, epochs=epochs, callbacks=[monitor],
+            history = model.fit(X_t, y_t, verbose=0, epochs=epochs, callbacks=[monitor],
                     batch_size=batch_size, validation_data=(X_v, y_v))
             graphs_directory = os.getcwd() + "/graphs"
             bnn_save_plots(history, graphs_directory, set_name, future)
@@ -183,7 +184,6 @@ def bnn_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
 
     model = load_model(model_directory + "/" + set_name + "_basic_nn_" + str(future))
     predictions = model.predict(X_test)
-    print(predictions.shape)
     predictions = y_scaler.inverse_transform(predictions).reshape(-1)
     y_test = y_scaler.inverse_transform(y_test).reshape(-1)
 

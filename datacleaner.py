@@ -160,8 +160,13 @@ def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  se
     data['PrevWeekSameHour'] = data[target].copy().shift(epd*7)
     data['Prev24HourAveLoad'] = data[target].copy().rolling(window=epd*7, min_periods=1).mean()
     data['Weekday'] = data.index.dayofweek
-    data.loc[(data['Weekday'] < 5) & (data['Holiday'] == 0), 'IsWorkingDay'] = 1
-    data.loc[(data['Weekday'] > 4) | (data['Holiday'] == 1), 'IsWorkingDay'] = 0
+
+    if 'Holiday' in data.columns.values:
+        data.loc[(data['Weekday'] < 5) & (data['Holiday'] == 0), 'IsWorkingDay'] = 1
+        data.loc[(data['Weekday'] > 4) | (data['Holiday'] == 1), 'IsWorkingDay'] = 0
+    else:
+        data.loc[data['Weekday'] < 5, 'IsWorkingDay'] = 1
+        data.loc[data['Weekday'] > 4, 'IsWorkingDay'] = 0
 
     dec_daily = seasonal_decompose(data[target], model=trend_type, period=epd)
     dec_weekly = seasonal_decompose(data[target], model=trend_type, period=epd*7)
@@ -194,7 +199,6 @@ def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  se
 
     return data, outputs
     
-
 
 if __name__=="__main__":
 

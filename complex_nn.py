@@ -45,10 +45,11 @@ def cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
 
     if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "Complex_nn": predictions})
+        performances = performances.iloc[-1000:,:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
     else:
         performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['Complex_nn'] = predictions
+        performances['Complex_nn'] = predictions[-1000:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
@@ -165,7 +166,7 @@ def cnn_train_model(future, batch_size, epochs,
         y_v = y_train[val_idx]
         
         if fold == 9:
-            history = model.fit(X_t, y_t, verbose=1, epochs=epochs, callbacks=[monitor],
+            history = model.fit(X_t, y_t, verbose=0, epochs=epochs, callbacks=[monitor],
                     batch_size=batch_size, validation_data=(X_v, y_v))
             graphs_directory = os.getcwd() + "/graphs"
             cnn_save_plots(history, graphs_directory, set_name, future)

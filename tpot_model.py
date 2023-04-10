@@ -31,22 +31,23 @@ def tpot_cross_val_metrics(total_metrics, set_name, future):
     df.to_csv(csv_directory + "/" + set_name + "_cv_metrics_" + str(future) + ".csv", index=False)
 
 
-def tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time):
+def tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
 
     metric_outputs = tpot_get_metrics(predictions, y_test, 0)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
         performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "tpot": predictions})
+        performances = performances.iloc[-1000:,:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
     else:
         performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['tpot'] = predictions
+        performances['tpot'] = predictions[-1000:]
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
         new_row = {'Model': ["tpot"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
                     'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
-                    'MAPE': [metric_outputs.get("MAPE")], "TIME": [time]}
+                    'MAPE': [metric_outputs.get("MAPE")]}
 
         metrics = pd.DataFrame(new_row)
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
@@ -60,7 +61,6 @@ def tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name
             metrics.loc[metrics['Model'] == 'tpot', 'MSE'] = metric_outputs.get("MSE")
             metrics.loc[metrics['Model'] == 'tpot', 'MAE'] = metric_outputs.get("MAE")
             metrics.loc[metrics['Model'] == 'tpot', 'MAPE'] = metric_outputs.get("MAPE")
-            metrics.loc[metrics['Model'] == 'tpot', 'TIME'] = time
         else:
             new_row = {'Model': "tpot", 'RMSE': metric_outputs.get("RMSE"), 'R2': metric_outputs.get("R2"), 
                         'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
@@ -70,16 +70,19 @@ def tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     
 
-def tpot_train_model(future, model_directory, set_name, X_train, y_train):
+def tpot_train_model(future, model_directory, set_name, X_train, y_train, pred_dates_test, X_test, y_test, y_scaler):
 
-    model = TPOTRegressor(early_stop=5, verbosity=0, max_time_mins=300, cv=10)
+    model = TPOTRegressor(early_stop=5, verbosity=0, max_time_mins=1, cv=10)
     model.fit(X_train, y_train)
+
+    tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler)
+
     model.export(model_directory + "/" + set_name + "_tpot_" + str(future) + ".py")
 
     print("Completed generating tpot model")
 
 
-def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, time):
+def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -91,18 +94,18 @@ def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, ti
     predictions = y_scaler.inverse_transform(predictions)
     y_test = y_scaler.inverse_transform(y_test)
 
-    tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, time)
+    tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
     print(f"Finished running tpot prediction on future window {0}", future)
 
 
-def tpot_evaluate(future, set_name, X_train, y_train):
+def tpot_evaluate(future, set_name, X_train, y_train, pred_dates_test, X_test, y_test, y_scaler):
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
 
     absl.logging.set_verbosity(absl.logging.ERROR)
 
-    tpot_train_model(future, model_directory, set_name, X_train, y_train)
+    tpot_train_model(future, model_directory, set_name, X_train, y_train, pred_dates_test, X_test, y_test, y_scaler)
     
 
 

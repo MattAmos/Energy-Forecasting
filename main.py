@@ -11,16 +11,19 @@ if __name__=="__main__":
 
     folder_path = os.getcwd()
     csv_directory = folder_path + r"\csvs"
-    file_path = csv_directory + "/matlab_temp.xlsx"
 
-    cleaning = 1
-    training = 1
-    predicting = 1
-    
+    # These are the values that need changing per different dataset
+    file_path = csv_directory + "/matlab_temp.xlsx"
     set_name = "matlab"
     target = "SYSLoad"
     trend_type = "Additive"
     epd = 48
+
+    cleaning = 0
+    training = 0
+    predicting = 0
+    eval_tpot = 1
+
     partition = 5000
     data_epochs = 10
 
@@ -34,15 +37,12 @@ if __name__=="__main__":
 
     window = 10
     split = 0.8
-    epochs = 100
+    epochs = 1
     batch_size = 32
 
     futures = [0, 1, 7]
 
     for future in futures[:1]:
-
-        # This pipeline only currently works when everything is being enabled; need to modularise
-        # Predictions from training from cleaning
 
         if cleaning:
 
@@ -54,7 +54,7 @@ if __name__=="__main__":
             best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target, split, data_epochs, batch_size, csv_directory)
 
         else:
-            # need to figure out how to convert this over to dictionary form to feed into finalise data
+
             if os.path.exists(csv_directory + "/best_data_parameters.csv") \
                     and os.path.exists(csv_directory + "/" + set_name + "_data_" + str(future) + ".csv") \
                     and os.path.exists(csv_directory + "/" + set_name + "_outputs_" + str(future) + ".csv"):
@@ -92,7 +92,6 @@ if __name__=="__main__":
             cnn_evaluate(future, set_name, X_train_3d, y_train, epochs, batch_size, y_scaler, epd)
             xgb_evaluate(future, set_name, X_train_2d, y_train, epochs, epd)
             rf_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), epochs, epd)
-            tpot_evaluate(future, set_name, X_train_2d, y_train.reshape(-1))
 
         if predicting:
 
@@ -101,7 +100,8 @@ if __name__=="__main__":
             xgb_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
             rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
 
-            # Making tpot predictions has not yet been implemented
+        if eval_tpot:
+            tpot_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), pred_dates_test, X_test_2d, y_test.reshape(-1), y_scaler)
 
         if os.path.exists("X_train_3d.npy"):
             os.remove("X_train_3d.npy")
