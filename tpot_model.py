@@ -75,24 +75,21 @@ def tpot_train_model(future, model_directory, set_name, X_train, y_train, pred_d
     model = TPOTRegressor(early_stop=5, verbosity=0, max_time_mins=1, cv=10)
     model.fit(X_train, y_train)
 
-    tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler)
+    tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, model)
 
     model.export(model_directory + "/" + set_name + "_tpot_" + str(future) + ".py")
 
     print("Completed generating tpot model")
 
 
-def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
+def tpot_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler, model):
 
     folder_path = os.getcwd()
-    model_directory = folder_path + r"\models"
     csv_directory = folder_path + r"\csvs"
 
-    model = load(model_directory + "/" + set_name + "_tpot_" + str(future) + ".pkl")
     predictions = model.predict(X_test).reshape(-1, 1)
-    print(predictions.shape)
     predictions = y_scaler.inverse_transform(predictions)
-    y_test = y_scaler.inverse_transform(y_test)
+    y_test = y_scaler.inverse_transform(y_test.reshape(-1, 1))
 
     tpot_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
     print(f"Finished running tpot prediction on future window {0}", future)

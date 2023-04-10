@@ -101,6 +101,7 @@ if __name__=="__main__":
             rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
 
         if eval_tpot:
+            # Problem still exists with tpot for whatever reason
             tpot_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), pred_dates_test, X_test_2d, y_test.reshape(-1), y_scaler)
 
         if os.path.exists("X_train_3d.npy"):

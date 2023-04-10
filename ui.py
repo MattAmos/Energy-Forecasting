@@ -6,14 +6,11 @@ import dash
 import plotly.express as px
 from dash import dcc
 from dash import html
-# import dash_core_components as dcc
-# import dash_html_components as html
 
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 from scipy.stats import rayleigh
 from ui_datafinder import datasets, infokeeper, availablemodes
-
 
 GRAPH_INTERVAL = os.environ.get("GRAPH_INTERVAL", 5000)
 
@@ -24,6 +21,10 @@ info = infokeeper()
 info.set_model("Basic_nn")
 info.set_baseline(0)
 info.set_period(0)
+
+all_sets = available.get_keys()
+periods = available.return_periods(all_sets[0])
+models = available.return_models(all_sets[0])
 
 app = dash.Dash(
     __name__,
@@ -57,19 +58,16 @@ app.layout = html.Div(
         html.Div(
             [
                 dash.dcc.Dropdown(id="dataset",
-                        options= available.get_keys(),
+                        options= all_sets,
                         multi=False,
-                        value=available.get_keys()[0],
+                        value=all_sets[0],
                         style={'width': "100%"},
                         placeholder='Select an available dataset'
                 ),
                 dash.dcc.Dropdown(id="model",
-                        options=[
-                            {"label": "7", "value": "model_7"},
-                            {"label": "30", "value": "model_30"},
-                            {"label": "90", "value": "model_90"}],
+                        options=models,
                         multi=False,
-                        value="model_7",
+                        value=models[0],
                         style={'width': "100%"},
                         placeholder='Select Forecasting Period'
                 ),
@@ -83,12 +81,9 @@ app.layout = html.Div(
                         placeholder='Enable Baseline'
                 ),
                 dash.dcc.Dropdown(id="period",
-                        options=[
-                            {"label": "7", "value": "model_7"},
-                            {"label": "30", "value": "model_30"},
-                            {"label": "90", "value": "model_90"}],
+                        options=periods,
                         multi=False,
-                        value="model_7",
+                        value=periods[0],
                         style={'width': "100%"},
                         placeholder='Select Forecasting Period'
                 )
@@ -218,17 +213,19 @@ app.layout = html.Div(
 
 
 @app.callback(
-    Output("energy-forecast", "figure"), [Input("call-update", "n_intervals")]
+    Output("energy-forecast", "figure"), 
+    [Input('dataset', 'value'),
+     Input('model', 'value'),
+     Input('period', 'value'),
+     Input('baseline', 'value')]
 )
-def gen_energy_forecast(interval):
+def gen_energy_forecast(set_name, model, baseline, period):
     """
     Generate the wind speed graph.
     :params interval: update the graph based on an interval
     """
 
-    model, baseline, period = info.get_stats()
-
-    df = dataset.get_performance_data(model, baseline, period)
+    df = dataset.get_performance_data(set_name, model, baseline, period)
 
     # Have not implemented the baseline model into this yet
     trace = dict(
@@ -271,17 +268,19 @@ def gen_energy_forecast(interval):
 
 
 @app.callback(
-    Output("performance-characteristics", "figure"), [Input("call-update", "n_intervals")]
+    Output("performance-characteristics", "figure"), 
+    [Input('dataset', 'value'),
+     Input('model', 'value'),
+     Input('period', 'value'),
+     Input('baseline', 'value')]
 )
-def gen_metrics(interval):
+def gen_metrics(set_name, model, baseline, period):
     """
     Generate the wind direction graph.
     :params interval: update the graph based on an interval
     """
 
-    model, baseline, period = info.get_stats()
-
-    df = dataset.get_metrics_data(model, baseline, period)
+    df = dataset.get_metrics_data(set_name, model, baseline, period)
 
     data = [
         dict(
@@ -312,14 +311,17 @@ def gen_metrics(interval):
 
 @app.callback(
     Output("error-distribution", "figure"),
-    [Input("call-update", "n_intervals")],
+    [Input('dataset', 'value'),
+     Input('model', 'value'),
+     Input('period', 'value'),
+     Input('baseline', 'value')],
     [
         State("energy-forecast", "figure"),
         State("bin-slider", "value"),
         State("bin-auto", "value"),
     ],
 )
-def gen_error_histogram(interval, energy_forecast_figure, slider_value, auto_state):
+def gen_error_histogram(set_name, model, period, baseline, energy_forecast_figure, slider_value, auto_state):
     """
     Genererate wind histogram graph.
     :params interval: upadte the graph based on an interval
@@ -328,9 +330,7 @@ def gen_error_histogram(interval, energy_forecast_figure, slider_value, auto_sta
     :params auto_state: current auto state
     """
 
-    model, baseline, period = info.get_stats()
-
-    df = dataset.get_performance_data(model, baseline, period)
+    df = dataset.get_performance_data(set_name, model, baseline, period)
     error_val = []
 
     try:
@@ -474,9 +474,8 @@ def deselect_auto(slider_value, energy_forecast_figure):
 def update_model_options(dataset):
     
     options = []
-    values = available.return_dataset(dataset)
-    models = values.get('Models')
-    for model in models:
+    models = available.return_models(dataset)
+    for model in models[:1]:
         option = {'labels': model, 'value': model}
         options.append(option)
     
@@ -493,13 +492,12 @@ def update_model_options(dataset):
 def update_period_options(dataset):
     
     options = []
-    values = available.return_dataset(dataset)
-    periods = values.get('Periods')
-    for period in periods:
+    periods = available.return_periods(dataset)
+    for period in periods[:1]:
         option = {'labels': str(period), 'value': period}
         options.append(option)
     
-    value = 0
+    value = periods[0]
 
     return options, value
 
