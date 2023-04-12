@@ -52,28 +52,30 @@ def bnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
-        new_row = {'Model': ["Basic_nn"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
-                    'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
-                    'MAPE': [metric_outputs.get("MAPE")]}
-
-        metrics = pd.DataFrame(new_row)
+        metrics = pd.DataFrame({"Model": [], "Metric": [], "Value": []})
+        metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
+        metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
+        metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
+        metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
+        metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "R2", "Value": metric_outputs.get("R2")}
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     else:
 
         metrics = pd.read_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv")
 
         if 'Basic_nn' in metrics['Model'].values:
-            metrics.loc[metrics['Model'] == 'Basic_nn', 'RMSE'] = metric_outputs.get("RMSE")
-            metrics.loc[metrics['Model'] == 'Basic_nn', 'R2'] = metric_outputs.get("R2")
-            metrics.loc[metrics['Model'] == 'Basic_nn', 'MSE'] = metric_outputs.get("MSE")
-            metrics.loc[metrics['Model'] == 'Basic_nn', 'MAE'] = metric_outputs.get("MAE")
-            metrics.loc[metrics['Model'] == 'Basic_nn', 'MAPE'] = metric_outputs.get("MAPE")
+            metrics.loc[(metrics['Model'] == 'Basic_nn') & (metrics["Metric"] == "RMSE"), 'Value'] = metric_outputs.get("RMSE")
+            metrics.loc[(metrics['Model'] == 'Basic_nn') & (metrics["Metric"] == "MSE"), 'Value'] = metric_outputs.get("MSE")
+            metrics.loc[(metrics['Model'] == 'Basic_nn') & (metrics["Metric"] == "MAE"), 'Value'] = metric_outputs.get("MAE")
+            metrics.loc[(metrics['Model'] == 'Basic_nn') & (metrics["Metric"] == "MAPE"), 'Value'] = metric_outputs.get("MAPE")
+            metrics.loc[(metrics['Model'] == 'Basic_nn') & (metrics["Metric"] == "R2"), 'Value'] = metric_outputs.get("R2")
         else:
-            new_row = {'Model': "Basic_nn", 'RMSE': metric_outputs.get("RMSE"), 'R2': metric_outputs.get("R2"), 
-                        'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
-                        'MAPE': metric_outputs.get("MAPE")}
+            metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
+            metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
+            metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
+            metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
+            metrics.loc[len(metrics)] = {"Model": "Basic_nn", "Metric": "R2", "Value": metric_outputs.get("R2")}
 
-            metrics.loc[len(metrics)] = new_row
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
 
 

@@ -21,8 +21,8 @@ if __name__=="__main__":
 
     cleaning = 0
     training = 0
-    predicting = 0
-    eval_tpot = 1
+    predicting = 1
+    eval_tpot = 0
 
     partition = 5000
     data_epochs = 10

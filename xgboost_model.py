@@ -46,28 +46,29 @@ def xgb_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name,
         performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
 
     if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
-        new_row = {'Model': ["xgb"], 'RMSE': [metric_outputs.get("RMSE")], 'R2': [metric_outputs.get("R2")], 
-                    'MSE': [metric_outputs.get("MSE")], 'MAE': [metric_outputs.get("MAE")], 
-                    'MAPE': [metric_outputs.get("MAPE")]}
-
-        metrics = pd.DataFrame(new_row)
+        metrics = pd.DataFrame({"Model": [], "Metric": [], "Value": []})
+        metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
+        metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
+        metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
+        metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
+        metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "R2", "Value": metric_outputs.get("R2")}
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     else:
 
         metrics = pd.read_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv")
 
         if 'xgb' in metrics['Model'].values:
-            metrics.loc[metrics['Model'] == 'xgb', 'RMSE'] = metric_outputs.get("RMSE")
-            metrics.loc[metrics['Model'] == 'xgb', 'R2'] = metric_outputs.get("R2")
-            metrics.loc[metrics['Model'] == 'xgb', 'MSE'] = metric_outputs.get("MSE")
-            metrics.loc[metrics['Model'] == 'xgb', 'MAE'] = metric_outputs.get("MAE")
-            metrics.loc[metrics['Model'] == 'xgb', 'MAPE'] = metric_outputs.get("MAPE")
+            metrics.loc[(metrics['Model'] == 'xgb') & (metrics["Metric"] == "RMSE"), 'Value'] = metric_outputs.get("RMSE")
+            metrics.loc[(metrics['Model'] == 'xgb') & (metrics["Metric"] == "MSE"), 'Value'] = metric_outputs.get("MSE")
+            metrics.loc[(metrics['Model'] == 'xgb') & (metrics["Metric"] == "MAE"), 'Value'] = metric_outputs.get("MAE")
+            metrics.loc[(metrics['Model'] == 'xgb') & (metrics["Metric"] == "MAPE"), 'Value'] = metric_outputs.get("MAPE")
+            metrics.loc[(metrics['Model'] == 'xgb') & (metrics["Metric"] == "R2"), 'Value'] = metric_outputs.get("R2")
         else:
-            new_row = {'Model': "xgb", 'RMSE': metric_outputs.get("RMSE"), 'R2': metric_outputs.get("R2"), 
-                        'MSE': metric_outputs.get("MSE"), 'MAE': metric_outputs.get("MAE"), 
-                        'MAPE': metric_outputs.get("MAPE")}
-
-            metrics.loc[len(metrics)] = new_row
+            metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
+            metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
+            metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
+            metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
+            metrics.loc[len(metrics)] = {"Model": "xgb", "Metric": "R2", "Value": metric_outputs.get("R2")}
         metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
     
 
@@ -139,5 +140,5 @@ def xgb_evaluate(future, set_name, X_train, y_train, epochs, epd):
     xgb_train_model(future, epochs,
             model_directory, set_name, X_train, y_train, epd)
     
-    print("Finished evaluating basic for future {0}".format(future))
+    print("Finished evaluating xgb for future {0}".format(future))
     

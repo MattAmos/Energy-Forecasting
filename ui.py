@@ -12,8 +12,6 @@ from dash.dependencies import Input, Output, State
 from scipy.stats import rayleigh
 from ui_datafinder import datasets, infokeeper, availablemodes
 
-GRAPH_INTERVAL = os.environ.get("GRAPH_INTERVAL", 5000)
-
 dataset = datasets()
 available = availablemodes()
 
@@ -34,7 +32,9 @@ app.title = "Energy Consumption Predictor"
 
 # server = app.server
 
-app_color = {"graph_bg": "#082255", "graph_line": "#007ACE"}
+app_color = {"graph_bg": "#082255", "graph_line": "#007ACE", "drop_text": "#007ACE", 
+             "drop_bg": "#082255", "drop_out": "#007ACE", "pred_colour": "#42C4F7", 
+             "actual_colour": 'white', "base_colour": 'aqua'}
 
 app.layout = html.Div(
     [
@@ -55,43 +55,64 @@ app.layout = html.Div(
             className="app__header",
         ),
 
-        html.Div(
-            [
-                dash.dcc.Dropdown(id="dataset",
+        html.Div([
+            html.Label('Dataset', style={"color": "white"}),
+            dcc.Dropdown(id="dataset",
                         options= all_sets,
                         multi=False,
                         value=all_sets[0],
-                        style={'width': "100%"},
+                        style={
+                            'color': app_color['drop_text'],            
+                            'background-color': app_color['drop_bg'], 
+                            'border-color': app_color['drop_out'],    
+                        },
                         placeholder='Select an available dataset'
-                ),
-                dash.dcc.Dropdown(id="model",
+            )
+        ], style={'width': '24%', 'display': 'inline-block'}),
+        html.Div([
+            html.Label('Model', style={"color": "white"}),
+            dcc.Dropdown(id="model",
                         options=models,
                         multi=False,
                         value=models[0],
-                        style={'width': "100%"},
+                        style={
+                            'color': app_color['drop_text'],            
+                            'background-color': app_color['drop_bg'], 
+                            'border-color': app_color['drop_out'],    
+                        },
                         placeholder='Select Forecasting Period'
-                ),
-                dash.dcc.Dropdown(id="baseline",
+            )
+        ], style={'width': '24%', 'display': 'inline-block'}),
+        html.Div([
+            html.Label('Baseline', style={"color": "white"}),
+            dcc.Dropdown(id="baseline",
                         options=[
                             {"label": "On", "value": 1},
                             {"label": "Off", "value": 0}],
                         multi=False,
                         value=0,
-                        style={'width': "100%"},
+                        style={
+                            'color': app_color['drop_text'],            
+                            'background-color': app_color['drop_bg'], 
+                            'border-color': app_color['drop_out'],    
+                        },
                         placeholder='Enable Baseline'
-                ),
-                dash.dcc.Dropdown(id="period",
+            )
+        ], style={'width': '24%', 'display': 'inline-block'}),
+        html.Div([
+            html.Label('Period', style={"color": "white"}),
+            dcc.Dropdown(id="period",
                         options=periods,
                         multi=False,
                         value=periods[0],
-                        style={'width': "100%"},
-                        placeholder='Select Forecasting Period'
-                )
-            ],
-            style={'display': 'inline-block'},
-            className="app__buttons",
-        ),
-
+                        style={
+                            'color': app_color['drop_text'],            
+                            'background-color': app_color['drop_bg'], 
+                            'border-color': app_color['drop_out'],    
+                        },
+                        placeholder='Select Forecasting Period',
+            )
+        ], style={'width': '24%', 'display': 'inline-block'}),
         html.Div(
             [
                 # wind speed
@@ -108,11 +129,6 @@ app.layout = html.Div(
                                     paper_bgcolor=app_color["graph_bg"],
                                 )
                             ),
-                        ),
-                        dcc.Interval(
-                            id="call-update",
-                            interval=int(GRAPH_INTERVAL),
-                            n_intervals=0,
                         ),
                     ],
                     className="two-thirds column energy__forecast__container",
@@ -228,14 +244,44 @@ def gen_energy_forecast(set_name, model, baseline, period):
     df = dataset.get_performance_data(set_name, model, baseline, period)
 
     # Have not implemented the baseline model into this yet
-    trace = dict(
+
+    trace_actual = dict(
+        type="scatter",
+        y=df["Actual"],
+        x=df['Date'],
+        line={"color": app_color["actual_colour"]},
+        hoverinfo="skip",
+        mode="lines",
+        name="Actual",
+    )
+
+    trace_model = dict(
         type="scatter",
         y=df[model],
         x=df['Date'],
-        line={"color": "#42C4F7"},
+        line={"color": app_color["pred_colour"]},
         hoverinfo="skip",
         mode="lines",
+        name=model,
     )
+
+    if "Baseline" in df.columns.values:
+
+        trace_base = dict(
+        type="scatter",
+        y=df["Baseline"],
+        x=df['Date'],
+        line={"color": app_color["base_colour"]},
+        hoverinfo="skip",
+        mode="lines",
+        name="Baseline",
+        )
+
+        data = [trace_actual, trace_model, trace_base]
+
+    else:
+
+        data = [trace_actual, trace_model]
 
     layout = dict(
         plot_bgcolor=app_color["graph_bg"],
@@ -260,11 +306,11 @@ def gen_energy_forecast(set_name, model, baseline, period):
             "fixedrange": True,
             "zeroline": False,
             "gridcolor": app_color["graph_line"],
-            "nticks": max(6, round(df[model].iloc[-1] / 10)),
+            "nticks": 10,
         },
     )
 
-    return dict(data=[trace], layout=layout)
+    return dict(data=data, layout=layout)
 
 
 @app.callback(
@@ -282,17 +328,14 @@ def gen_metrics(set_name, model, baseline, period):
 
     df = dataset.get_metrics_data(set_name, model, baseline, period)
 
-    data = [
-        dict(
+    data = [dict(
             type="scatterpolar",
             r=df["Value"],
             theta=df["Metric"],
             color=df["Model"],
             mode="lines",
             fill="toself",
-            line={"color": "rgba(32, 32, 32, .6)", "width": 1},
-        )
-    ]
+        )]
 
     layout = dict(
         height=350,
@@ -475,13 +518,8 @@ def update_model_options(dataset):
     
     options = []
     models = available.return_models(dataset)
-    for model in models[:1]:
-        option = {'labels': model, 'value': model}
-        options.append(option)
-    
-    value = models[0]
 
-    return options, value
+    return [{'label': i, 'value': i} for i in models], models[0]
 
 
 @app.callback(
@@ -493,13 +531,8 @@ def update_period_options(dataset):
     
     options = []
     periods = available.return_periods(dataset)
-    for period in periods[:1]:
-        option = {'labels': str(period), 'value': period}
-        options.append(option)
-    
-    value = periods[0]
 
-    return options, value
+    return [{'label': i, 'value': i} for i in periods], periods[0]
 
 
 @app.callback(

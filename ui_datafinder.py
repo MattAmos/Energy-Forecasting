@@ -2,6 +2,8 @@ import pandas as pd
 import os
 import re
 
+from sklearn.preprocessing import MinMaxScaler
+
 class availablemodes:
 
     def __init__(self):
@@ -103,6 +105,7 @@ class datasets:
         self.metrics_0 = {}
 
         self.get_datasets()
+
 
 
     def get_datasets(self):
