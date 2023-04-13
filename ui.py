@@ -265,7 +265,7 @@ def gen_energy_forecast(set_name, model, baseline, period):
         name=model,
     )
 
-    if "Baseline" in df.columns.values:
+    if baseline:
 
         trace_base = dict(
         type="scatter",
@@ -317,8 +317,9 @@ def gen_energy_forecast(set_name, model, baseline, period):
     Output("performance-characteristics", "figure"), 
     [Input('dataset', 'value'),
      Input('model', 'value'),
-     Input('period', 'value'),
-     Input('baseline', 'value')]
+     Input('baseline', 'value'),
+     Input('period', 'value')
+    ]
 )
 def gen_metrics(set_name, model, baseline, period):
     """
@@ -332,7 +333,7 @@ def gen_metrics(set_name, model, baseline, period):
             type="scatterpolar",
             r=df["Value"],
             theta=df["Metric"],
-            color=df["Model"],
+            color="black",
             mode="lines",
             fill="toself",
         )]
@@ -344,7 +345,7 @@ def gen_metrics(set_name, model, baseline, period):
         font={"color": "#fff"},
         autosize=False,
         polar={
-            "bgcolor": app_color["graph_line"],
+            "bgcolor": "black",
         },
         showlegend=False,
     )
@@ -516,8 +517,9 @@ def deselect_auto(slider_value, energy_forecast_figure):
 )
 def update_model_options(dataset):
     
-    options = []
     models = available.return_models(dataset)
+    if "Baseline" in models:
+        models.remove("Baseline")
 
     return [{'label': i, 'value': i} for i in models], models[0]
 
@@ -543,9 +545,8 @@ def update_period_options(dataset):
 def update_baseline_options(dataset):
 
     options = []
-    values = available.return_dataset(dataset)
-    models = values.get('Models')
-    if 'Baseline' in models:
+    models = available.return_models(dataset)
+    if "Baseline" in models:
         options = [{'label': 'On', 'value': 1},
                    {'label': 'Off', 'value': 0}]
     else:

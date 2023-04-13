@@ -11,72 +11,15 @@ from sklearn.metrics import mean_squared_error as mse, r2_score, mean_absolute_e
 from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.tsa.seasonal import seasonal_decompose
 
+import time
 import os
 import pandas as pd
 import numpy as np
 import keras_tuner as kt
 import matplotlib.pyplot as plt
+
+from performance_analysis import *
     
-
-def cnn_get_metrics(predictions, actual, cv):
-
-    MSE = mse(actual, predictions, squared=True)
-    MAE = mae(actual, predictions)
-    MAPE = mape(actual, predictions)
-    RMSE = mse(actual, predictions, squared=False)
-    R2 = r2_score(actual, predictions)
-    if cv:
-        metrics = {'CNN_RMSE': RMSE, 'CNN_R2': R2, 'CNN_MSE': MSE, 'CNN_MAE': MAE, 'CNN_MAPE': MAPE}
-    else:
-        metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
-    return metrics
-
-
-def cnn_cross_val_metrics(total_metrics, set_name, future):
-
-    csv_directory = os.getcwd() + "/csvs"
-    df = pd.DataFrame(total_metrics)
-    df.to_csv(csv_directory + "/" + set_name + "_cv_metrics_" + str(future) + ".csv", index=False)
-
-
-def cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
-
-    metric_outputs = cnn_get_metrics(predictions, y_test, 0)
-
-    if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
-        performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "Complex_nn": predictions})
-        performances = performances.iloc[-1000:,:]
-        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
-    else:
-        performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['Complex_nn'] = predictions[-1000:]
-        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
-
-    if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
-        metrics = pd.DataFrame({"Model": [], "Metric": [], "Value": []})
-        metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
-        metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
-        metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
-        metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
-        metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "R2", "Value": metric_outputs.get("R2")}
-        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
-    else:
-
-        metrics = pd.read_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv")
-
-        if 'Complex_nn' in metrics['Model'].values:
-            metrics.loc[(metrics['Model'] == 'Complex_nn') & (metrics["Metric"] == "RMSE"), 'Value'] = metric_outputs.get("RMSE")
-            metrics.loc[(metrics['Model'] == 'Complex_nn') & (metrics["Metric"] == "MSE"), 'Value'] = metric_outputs.get("MSE")
-            metrics.loc[(metrics['Model'] == 'Complex_nn') & (metrics["Metric"] == "MAE"), 'Value'] = metric_outputs.get("MAE")
-            metrics.loc[(metrics['Model'] == 'Complex_nn') & (metrics["Metric"] == "MAPE"), 'Value'] = metric_outputs.get("MAPE")
-            metrics.loc[(metrics['Model'] == 'Complex_nn') & (metrics["Metric"] == "R2"), 'Value'] = metric_outputs.get("R2")
-        else:
-            metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
-            metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
-            metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
-            metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
-            metrics.loc[len(metrics)] = {"Model": "Complex_nn", "Metric": "R2", "Value": metric_outputs.get("R2")}
-        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
 
 
 def cnn_kt_model(hp):
@@ -177,12 +120,12 @@ def cnn_train_model(future, batch_size, epochs,
                     batch_size=batch_size)
         preds = model.predict(X_v, verbose=0)
         preds = y_scaler.inverse_transform(preds)
-        metrics = cnn_get_metrics(preds, y_v, 1)
+        metrics = get_metrics(preds, y_v, 1, "Complex_nn")
         total_metrics[fold_name] = metrics
 
         fold += 1
 
-    cnn_cross_val_metrics(total_metrics, set_name, future)
+    cross_val_metrics(total_metrics, set_name, future, "Complex_nn")
 
 
 
@@ -197,11 +140,17 @@ def cnn_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
     predictions = y_scaler.inverse_transform(predictions).reshape(-1)
     y_test = y_scaler.inverse_transform(y_test).reshape(-1)
 
-    cnn_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
-    print(f"Finished running complex prediction on future window {0}", future)
+    make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, "Complex_nn")
+
+    print("Finished running complex prediction on future window {0}".format(future))
+
+    metric_outputs = get_metrics(predictions, y_test, 0, "Complex_nn")
+    return metric_outputs
 
 
 def cnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size, y_scaler, epd):
+
+    time_start = time.time()
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -213,3 +162,7 @@ def cnn_evaluate(future, set_name, X_train, y_train, epochs, batch_size, y_scale
             model_directory, set_name, X_train, y_train, y_scaler, epd)
     
     print("Finished evaluating complex nn for future {0}".format(future))
+
+    time_end = time.time()
+
+    return time_end - time_start

@@ -10,67 +10,10 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 import os
 import pandas as pd
 import numpy as np
-    
 
-def rf_get_metrics(predictions, actual, cv):
+import time
 
-    MSE = mse(actual, predictions, squared=True)
-    MAE = mae(actual, predictions)
-    MAPE = mape(actual, predictions)
-    RMSE = mse(actual, predictions, squared=False)
-    R2 = r2_score(actual, predictions)
-    if cv:
-        metrics = {'RF_RMSE': RMSE, 'RF_R2': R2, 'RF_MSE': MSE, 'RF_MAE': MAE, 'RF_MAPE': MAPE}
-    else:
-        metrics = {'RMSE': RMSE, 'R2': R2, 'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}
-    return metrics
-
-
-def rf_cross_val_metrics(total_metrics, set_name, future):
-
-    csv_directory = os.getcwd() + "/csvs"
-    df = pd.DataFrame(total_metrics)
-    df.to_csv(csv_directory + "/" + set_name + "_cv_metrics_" + str(future) + ".csv", index=False)
-
-
-def rf_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future):
-
-    metric_outputs = rf_get_metrics(predictions, y_test, 0)
-
-    if not os.path.exists(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv"):
-        performances = pd.DataFrame({"Date":pred_dates_test, "Actual": y_test, "rf": predictions})
-        performances = performances.iloc[-1000:,:]
-        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
-    else:
-        performances = pd.read_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv")
-        performances['rf'] = predictions[-1000:]
-        performances.to_csv(csv_directory + "/" + set_name + "_performances_" + str(future) + ".csv", index=False)
-
-    if not os.path.exists(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv"):
-        metrics = pd.DataFrame({"Model": [], "Metric": [], "Value": []})
-        metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
-        metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
-        metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
-        metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
-        metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "R2", "Value": metric_outputs.get("R2")}
-        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
-    else:
-
-        metrics = pd.read_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv")
-
-        if 'rf' in metrics['Model'].values:
-            metrics.loc[(metrics['Model'] == 'rf') & (metrics["Metric"] == "RMSE"), 'Value'] = metric_outputs.get("RMSE")
-            metrics.loc[(metrics['Model'] == 'rf') & (metrics["Metric"] == "MSE"), 'Value'] = metric_outputs.get("MSE")
-            metrics.loc[(metrics['Model'] == 'rf') & (metrics["Metric"] == "MAE"), 'Value'] = metric_outputs.get("MAE")
-            metrics.loc[(metrics['Model'] == 'rf') & (metrics["Metric"] == "MAPE"), 'Value'] = metric_outputs.get("MAPE")
-            metrics.loc[(metrics['Model'] == 'rf') & (metrics["Metric"] == "R2"), 'Value'] = metric_outputs.get("R2")
-        else:
-            metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "RMSE", "Value": metric_outputs.get("RMSE")}
-            metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MSE", "Value": metric_outputs.get("MSE")}
-            metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MAE", "Value": metric_outputs.get("MAE")}
-            metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "MAPE", "Value": metric_outputs.get("MAPE")}
-            metrics.loc[len(metrics)] = {"Model": "rf", "Metric": "R2", "Value": metric_outputs.get("R2")}
-        metrics.to_csv(csv_directory + "/" + set_name + "_metrics_" + str(future) + ".csv", index=False)
+from performance_analysis import *
     
 
 def rf_train_model(future, epochs, model_directory, set_name, X_train, y_train, epd):
@@ -113,11 +56,17 @@ def rf_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
     predictions = y_scaler.inverse_transform(predictions)
     y_test = y_scaler.inverse_transform(y_test)
 
-    rf_make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future)
+    make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, "rf")
+
     print(f"Finished running rf prediction on future window {0}", future)
+
+    metric_outputs = get_metrics(predictions, y_test, 0, "rf")
+    return metric_outputs
 
 
 def rf_evaluate(future, set_name, X_train, y_train, epochs, epd):
+
+    time_start = time.time()
 
     folder_path = os.getcwd()
     model_directory = folder_path + r"\models"
@@ -128,4 +77,10 @@ def rf_evaluate(future, set_name, X_train, y_train, epochs, epd):
             model_directory, set_name, X_train, y_train, epd)
     
     print("Finished evaluating rf for future {0}".format(future))
+
+    time_end = time.time()
+
+    return time_end - time_start
+
+
     
