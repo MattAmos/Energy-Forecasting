@@ -19,6 +19,19 @@ import matplotlib.pyplot as plt
 
 from performance_analysis import *
 
+
+def build_baseline_model():
+
+    model = Sequential()
+    model.add(Dense(16, activation='relu'))
+    model.add(Dense(1, 'linear'))
+
+    model.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.001), 
+                metrics=['mean_squared_error'])
+
+    return model
+
+
 def build_simple_model():
 
     model = Sequential()
@@ -64,8 +77,8 @@ def simple_evaluate(future, set_name, X_train, y_train, epochs, batch_size):
     absl.logging.set_verbosity(absl.logging.ERROR)
     tf.compat.v1.logging.set_verbosity(30)
 
-    model = build_simple_model()
-    model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs)
+    model = build_baseline_model()
+    model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, verbose=0)
 
     model.save(model_directory + "/" + set_name + "_baseline_" + str(future))
     
@@ -89,7 +102,7 @@ def simple_predict(future, set_name, pred_dates_test, X_test, y_test, y_scaler):
 
     make_csvs(csv_directory, predictions, y_test, pred_dates_test, set_name, future, "Baseline")
 
-    print("Finished running basic prediction on future window {0}".format(future))
+    print("Finished running baseline prediction on future window {0}".format(future))
 
     metric_outputs = get_metrics(predictions, y_test, 0, "Baseline")
     return metric_outputs

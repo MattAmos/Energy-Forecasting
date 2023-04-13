@@ -83,7 +83,7 @@ def finalise_data(data, outputs, target, best_results):
     elif pca_dim == "mle":
         pca = PCA(n_components="mle")
         data = pca.fit_transform(data)
-    elif pca_dim != "Inf":
+    elif pca_dim != "NO_PCA":
         pca = PCA(n_components=pca_dim)
         data = pca.fit_transform(data)
 
@@ -135,7 +135,7 @@ def data_cleaning_pipeline(data_in, outputs_in, cleaning_parameters, target, spl
                     if pca_dim == None:
                         pca_dim = "None"
                     elif pca_dim == math.inf:
-                        pca_dim = "Inf"
+                        pca_dim = "NO_PCA"
                     elif pca_dim == -math.inf:
                         pca_dim = "mle"
                     best_results["MSE"][0] = mse

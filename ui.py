@@ -33,8 +33,8 @@ app.title = "Energy Consumption Predictor"
 # server = app.server
 
 app_color = {"graph_bg": "#082255", "graph_line": "#007ACE", "drop_text": "#007ACE", 
-             "drop_bg": "#082255", "drop_out": "#007ACE", "pred_colour": "#42C4F7", 
-             "actual_colour": 'white', "base_colour": 'aqua'}
+             "drop_bg": "#082255", "drop_out": "#007ACE", "pred_colour": 'aqua', 
+             "actual_colour": 'white', "base_colour": "#42C4F7"}
 
 app.layout = html.Div(
     [
@@ -232,8 +232,9 @@ app.layout = html.Div(
     Output("energy-forecast", "figure"), 
     [Input('dataset', 'value'),
      Input('model', 'value'),
-     Input('period', 'value'),
-     Input('baseline', 'value')]
+     Input('baseline', 'value'),
+     Input('period', 'value')
+     ]
 )
 def gen_energy_forecast(set_name, model, baseline, period):
     """
@@ -517,7 +518,7 @@ def deselect_auto(slider_value, energy_forecast_figure):
 )
 def update_model_options(dataset):
     
-    models = available.return_models(dataset)
+    models = available.return_models(dataset).copy()
     if "Baseline" in models:
         models.remove("Baseline")
 
@@ -532,7 +533,7 @@ def update_model_options(dataset):
 def update_period_options(dataset):
     
     options = []
-    periods = available.return_periods(dataset)
+    periods = available.return_periods(dataset).copy()
 
     return [{'label': i, 'value': i} for i in periods], periods[0]
 
