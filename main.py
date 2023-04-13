@@ -86,34 +86,32 @@ if __name__=="__main__":
 
         np.save("X_train_3d.npy", X_train_3d)
 
-        # bnn_time = bnn_evaluate(future, set_name, X_train_2d, y_train, epochs, batch_size, y_scaler, epd)
-        # cnn_time = cnn_evaluate(future, set_name, X_train_3d, y_train, epochs, batch_size, y_scaler, epd)
-        # xgb_time = xgb_evaluate(future, set_name, X_train_2d, y_train, epochs, epd)
-        # rf_time = rf_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), epochs, epd)
+        bnn_time = bnn_evaluate(future, set_name, X_train_2d, y_train, epochs, batch_size, y_scaler, epd)
+        cnn_time = cnn_evaluate(future, set_name, X_train_3d, y_train, epochs, batch_size, y_scaler, epd)
+        xgb_time = xgb_evaluate(future, set_name, X_train_2d, y_train, epochs, epd)
+        rf_time = rf_evaluate(future, set_name, X_train_2d, y_train.reshape(-1), epochs, epd)
         base_time = simple_evaluate(future, set_name, X_train_2d, y_train, epochs, batch_size)
 
     if predicting:
 
-        # bnn_metrics = bnn_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
-        # cnn_metrics = cnn_predict(future, set_name, pred_dates_test, X_test_3d, y_test, y_scaler)
-        # xgb_metrics = xgb_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
-        # rf_metrics = rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
+        bnn_metrics = bnn_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
+        cnn_metrics = cnn_predict(future, set_name, pred_dates_test, X_test_3d, y_test, y_scaler)
+        xgb_metrics = xgb_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
+        rf_metrics = rf_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
         base_metrics = simple_predict(future, set_name, pred_dates_test, X_test_2d, y_test, y_scaler)
 
         if training:
-            # bnn_metrics['TIME'] = bnn_time
-            # cnn_metrics['TIME'] = cnn_time
-            # xgb_metrics['TIME'] = xgb_time
-            # rf_metrics['TIME'] = rf_time
+            bnn_metrics['TIME'] = bnn_time
+            cnn_metrics['TIME'] = cnn_time
+            xgb_metrics['TIME'] = xgb_time
+            rf_metrics['TIME'] = rf_time
             base_metrics['TIME'] = base_time
 
-        # metrics = [bnn_metrics, cnn_metrics, xgb_metrics, rf_metrics, base_metrics]
-        metrics = [base_metrics]
+        metrics = [bnn_metrics, cnn_metrics, xgb_metrics, rf_metrics, base_metrics]
         metrics = normalise_metrics(metrics, training)
 
-        # metrics = {"Basic_nn": metrics[0], "Complex_nn": metrics[1], "xgb": metrics[2], 
-        #             "rf": metrics[3], "Baseline": metrics[4]}
-        metrics = {"Baseline": metrics[0]}
+        metrics = {"Basic_nn": metrics[0], "Complex_nn": metrics[1], "xgb": metrics[2], 
+                    "rf": metrics[3], "Baseline": metrics[4]}
 
         make_metrics_csvs(csv_directory, metrics, set_name, future, training)
 
