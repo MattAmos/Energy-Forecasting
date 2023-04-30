@@ -16,13 +16,17 @@ class Forecaster:
         model_path = path + "/models/matlab_basic_nn_0"
         self.model = load_model(model_path)
 
-        file_path = path + "/csvs/matlab_temp.xlsx"
+        file_path = path + "/csvs/matlab_temp_shortened.xlsx"
         target = "SYSLoad"
         trend_type = "additive"
         future = 0
         epd = 48
-        self.data = self.feature_adder(file_path, target, trend_type, future, epd)
+        self.data, self.targets = self.feature_adder(file_path, target, trend_type, future, epd)
 
+
+    def return_data(self):
+        return self.data[['DryBulb', 'WetBulb', 'Humidity', 'ElecPrice', 'DewPnt']]
+    
 
     def feature_adder(self, file_path, target, trend_type, future, epd):
 
@@ -49,6 +53,8 @@ class Forecaster:
         data['IntraWeekSeasonal'] = dec_weekly.seasonal
 
         data = data.dropna(how='any', axis='rows')
+        y = data[target].shift(-epd*future).reset_index(drop=True)
+        y = y.dropna(how='any', axis='rows')
 
         # future > 10 needs addressing - it is not yet implemented
         if future > 10:
@@ -56,7 +62,7 @@ class Forecaster:
         else:
             data = data.drop("{0}".format(target), axis=1)
 
-        return data
+        return data, y
         
 
     def create_input(self, humidity, holiday, drybulb, dewpoint, wetbulb, window):
@@ -70,19 +76,23 @@ class Forecaster:
         current_time = hour + minute
 
         tail = self.data.tail(window - 1)
+        tail = np.array(tail)
 
         last_row = self.data.loc[self.data["Hour"] == current_time]
         last_row = last_row.tail(1)
-        input = [current_time, drybulb, dewpoint, wetbulb, humidity, last_row['ElecPrice'], holiday, 
-                 last_row["PrevDaySameHour"], last_row["PrevWeekSameHour"], last_row['Prev24HourAveLoad'], 1, 1, 
-                 last_row["IntraDayTrend"], last_row["IntraDaySeasonal"], last_row["IntraWeekTrend"], last_row["IntraWeekSeasonal"]]
+        input = np.array([current_time, drybulb, dewpoint, wetbulb, humidity, last_row['ElecPrice'].iloc[0], holiday, 
+                 last_row["PrevDaySameHour"].iloc[0], last_row["PrevWeekSameHour"].iloc[0], last_row['Prev24HourAveLoad'].iloc[0], 1, 1, 
+                 last_row["IntraDayTrend"].iloc[0], last_row["IntraDaySeasonal"].iloc[0], last_row["IntraWeekTrend"].iloc[0], last_row["IntraWeekSeasonal"].iloc[0]])
         
-        input = np.append(tail, input)
+        input = np.append(tail, input).reshape(1, -1)
         
-        return np.array(input).astype("float32").reshape(1, -1)
+        return input
 
     def predict(self, input):
         return self.model.predict(input)[0][0]
+    
+    def return_targets(self):
+        return self.targets
 
 
 class availablemodes:

@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import pathlib
 import numpy as np
 import datetime as dt
@@ -11,6 +12,9 @@ from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 from scipy.stats import rayleigh
 from ui_datafinder import Forecaster
+
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 
 forecaster = Forecaster()
 
@@ -109,33 +113,229 @@ layout = html.Div(
                 ], style={'width': '24%', 'display': 'inline-block'}),
             ],
         ),
-        html.Div(id='output-container', children='')
+        html.Div(
+            [
+                # data distributions
+                html.Div(
+                    [
+                        html.Div(
+                            [html.H6("Parameter Distributions", className="graph__title")]
+                        ),
+                        dcc.Graph(
+                            id="parameter_plot",
+                            figure=dict(
+                                layout=dict(
+                                    plot_bgcolor=app_color["graph_bg"],
+                                    paper_bgcolor=app_color["graph_bg"],
+                                )
+                            ),
+                        ),
+                    ],
+                    className="two-thirds column energy__forecast__container",
+                ),
+                html.Div(
+                    [
+                        # wind direction
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.H6(
+                                            "Forecasted Consumption:", className="graph__title"
+                                        )
+                                    ]
+                                ),
+                                html.Div(id="forecasted_amount", children="0.000", 
+                                         style={"color": "white", "fontSize": "20px"}),
+                            ],
+                            className="graph__container second",
+                        ),
+                        # consumption distribution
+                        html.Div(
+                            [
+                                dcc.Graph(
+                                    id="consumption-distribution",
+                                    figure=dict(
+                                        layout=dict(
+                                            plot_bgcolor=app_color["graph_bg"],
+                                            paper_bgcolor=app_color["graph_bg"],
+                                        )
+                                    ),
+                                ),
+                            ],
+                            className="graph__container first",
+                        ),
+                    ],
+                    className="one-third column histogram__direction",
+                ),
+            ],
+            className="app__content",
+        ),
     ],
     className="app__container",
 )
 
-@callback(Output('output-container', 'children'),
+@callback(
+    Output('parameter_plot', 'figure'),
+    Input('button', 'n_clicks'),
+)
+def gen_energy_forecast(_):
+    """
+    Generate the wind speed graph.
+    :params interval: update the graph based on an interval
+    """
+    data = forecaster.return_data()
+
+    # Define the figure
+    fig = go.Figure()
+    i = 0
+    # Add the box traces to the figure
+    for column in data.columns:
+        fig.add_trace(
+            go.Box(y=data[column], name=column, boxpoints='all')
+        )
+
+    layout = dict(
+        plot_bgcolor=app_color["graph_bg"],
+        paper_bgcolor=app_color["graph_bg"],
+        font={"color": "#fff"},
+        height=700,
+    )
+
+    return dict(data=fig.data, layout=layout)
+
+
+@callback(Output('forecasted_amount', 'children'),
               Input('button', 'n_clicks'),
               State('input-box-hol', 'value'),
               State('input-box-hum', 'value'),
               State('input-box-db', 'value'),
               State('input-box-dp', 'value'),
               State('input-box-wb', 'value'),)
-def update_output(n_clicks, holiday, humidity, drybulb, dewpoint, wetbulb):
-    if n_clicks is not None:
-        try:
-            humidity = int(humidity)
-            holiday = int(holiday)
-            drybulb = int(drybulb)
-            dewpoint = int(dewpoint)
-            wetbulb = int(wetbulb)
+def update_consumption_label(_, holiday, humidity, drybulb, dewpoint, wetbulb):
+    if holiday != '' and humidity != '' and drybulb != '' \
+            and dewpoint != '' and wetbulb != '':
+       
+        humidity = int(humidity)
+        holiday = int(holiday)
+        drybulb = int(drybulb)
+        dewpoint = int(dewpoint)
+        wetbulb = int(wetbulb)
 
-            input = forecaster.create_input(humidity, holiday, drybulb, dewpoint, wetbulb, 10)
-            prediction = forecaster.predict(input)
-            print(prediction)
+        input = forecaster.create_input(humidity, holiday, drybulb, dewpoint, wetbulb, 10)
+        prediction = forecaster.predict(input)
 
-            # Then I need to update all the graphs i choose to put into the system after that
-        except ValueError:
-            print("Ensure all inputs are integer values")
+        return '        {:.2f}'.format(prediction)
+    else:
+        return "0.000"
+
+
+@callback(Output('consumption-distribution', 'figure'),
+              Input('button', 'n_clicks'),
+              State('input-box-hol', 'value'),
+              State('input-box-hum', 'value'),
+              State('input-box-db', 'value'),
+              State('input-box-dp', 'value'),
+              State('input-box-wb', 'value'),)
+def update_consumption_distribution(_, holiday, humidity, drybulb, dewpoint, wetbulb):
+
+    targets = forecaster.return_targets()
+
+    try:
+        
+        bin_val = np.histogram(
+            targets,
+            bins=range(int(round(min(targets))), int(round(max(targets)))),
+        )
+    
+    except Exception as error:
+        raise PreventUpdate
+
+    bin_val_max = max(bin_val[0])
+
+    trace = dict(
+        type="bar",
+        x=bin_val[1],
+        y=bin_val[0],
+        marker={"color": app_color["graph_line"]},
+        showlegend=False,
+        hoverinfo="x+y",
+    )
+
+    layout = dict(
+                height=350,
+                plot_bgcolor=app_color["graph_bg"],
+                paper_bgcolor=app_color["graph_bg"],
+                font={"color": "#fff"},
+                xaxis={
+                    "title": "Consumption",
+                    "showgrid": False,
+                    "showline": False,
+                    "fixedrange": True,
+                },
+                yaxis={
+                    "showgrid": False,
+                    "showline": False,
+                    "zeroline": False,
+                    "title": "Number of Samples",
+                    "fixedrange": True,
+                },
+                autosize=True,
+                bargap=0.01,
+                bargroupgap=0,
+                hovermode="closest",
+                legend={
+                    "orientation": "h",
+                    "yanchor": "bottom",
+                    "xanchor": "center",
+                    "y": 1,
+                    "x": 0.5,
+                },
+            )
+
+    if holiday != '' and humidity != '' and drybulb != '' \
+            and dewpoint != '' and wetbulb != '':
+       
+        humidity = int(humidity)
+        holiday = int(holiday)
+        drybulb = int(drybulb)
+        dewpoint = int(dewpoint)
+        wetbulb = int(wetbulb)
+
+        input = forecaster.create_input(humidity, holiday, drybulb, dewpoint, wetbulb, 10)
+        prediction = forecaster.predict(input)
+
+        scatter_data = dict(
+                            type="scatter",
+                            x=[bin_val[int(len(bin_val) / 2)]],
+                            y=[0],
+                            mode="lines",
+                            line={"dash": "dash", "color": "#red"},
+                            marker={"opacity": 0},
+                            visible=True,
+                            name="Prediction",
+                        )
+        
+        data = [trace, scatter_data]
+
+        layout["shapes"] = [
+            {
+                "xref": "x",
+                "yref": "y",
+                "y1": int(bin_val_max) + 0.5,
+                "y0": 0,
+                "x0": prediction,
+                "x1": prediction,
+                "type": "line",
+                "line": {"dash": "dash", "color": "#red", "width": 5},
+            },
+        ],
+
+    else:
+        data = [trace]
+    
+    return dict(data=data, layout=layout)
+
+
 
 
