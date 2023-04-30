@@ -20,7 +20,7 @@ def collapse_columns(data):
     
 def create_dataset_2d(input, win_size):
     
-    np_data = input.copy()
+    np_data = np.array(input.copy())
 
     X = []
 
@@ -36,7 +36,7 @@ def create_dataset_2d(input, win_size):
 
 def create_dataset_3d(input, win_size):
     
-    np_data = input.copy()
+    np_data = np.array(input.copy())
 
     X = []
 

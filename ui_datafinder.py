@@ -1,8 +1,89 @@
 import pandas as pd
+import numpy as np
 import os
 import re
+import datetime
 
+from statsmodels.tsa.seasonal import seasonal_decompose
+from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
+
+
+class Forecaster:
+
+    def __init__(self):
+        path = os.getcwd()
+        model_path = path + "/models/matlab_basic_nn_0"
+        self.model = load_model(model_path)
+
+        file_path = path + "/csvs/matlab_temp.xlsx"
+        target = "SYSLoad"
+        trend_type = "additive"
+        future = 0
+        epd = 48
+        self.data = self.feature_adder(file_path, target, trend_type, future, epd)
+
+
+    def feature_adder(self, file_path, target, trend_type, future, epd):
+
+        data = pd.read_excel(file_path).set_index("Date")
+
+        data['PrevDaySameHour'] = data[target].copy().shift(epd)
+        data['PrevWeekSameHour'] = data[target].copy().shift(epd*7)
+        data['Prev24HourAveLoad'] = data[target].copy().rolling(window=epd*7, min_periods=1).mean()
+        data['Weekday'] = data.index.dayofweek
+
+        if 'Holiday' in data.columns.values:
+            data.loc[(data['Weekday'] < 5) & (data['Holiday'] == 0), 'IsWorkingDay'] = 1
+            data.loc[(data['Weekday'] > 4) | (data['Holiday'] == 1), 'IsWorkingDay'] = 0
+        else:
+            data.loc[data['Weekday'] < 5, 'IsWorkingDay'] = 1
+            data.loc[data['Weekday'] > 4, 'IsWorkingDay'] = 0
+
+        dec_daily = seasonal_decompose(data[target], model=trend_type, period=epd)
+        dec_weekly = seasonal_decompose(data[target], model=trend_type, period=epd*7)
+
+        data['IntraDayTrend'] = dec_daily.trend
+        data['IntraDaySeasonal'] = dec_daily.seasonal
+        data['IntraWeekTrend'] = dec_weekly.trend
+        data['IntraWeekSeasonal'] = dec_weekly.seasonal
+
+        data = data.dropna(how='any', axis='rows')
+
+        # future > 10 needs addressing - it is not yet implemented
+        if future > 10:
+            data = data[['DryBulb', 'DewPnt', 'Prev5DayHighAve', 'Prev5DayLowAve', 'Hour', 'Weekday', 'IsWorkingDay']]
+        else:
+            data = data.drop("{0}".format(target), axis=1)
+
+        return data
+        
+
+    def create_input(self, humidity, holiday, drybulb, dewpoint, wetbulb, window):
+
+        # hour, drybulb, dewpoint, wetbuln, humidity, elecprice, holiday, prevdaysamehour, prevweeksamehour, 
+        # prev24hourav, weekday, workingday, intradaytrend, intradayseasonal, intraweektrend, intraweekseasonal
+
+        now = datetime.datetime.now()
+        hour = now.hour
+        minute = (now.minute // 30) * 0.5
+        current_time = hour + minute
+
+        tail = self.data.tail(window - 1)
+
+        last_row = self.data.loc[self.data["Hour"] == current_time]
+        last_row = last_row.tail(1)
+        input = [current_time, drybulb, dewpoint, wetbulb, humidity, last_row['ElecPrice'], holiday, 
+                 last_row["PrevDaySameHour"], last_row["PrevWeekSameHour"], last_row['Prev24HourAveLoad'], 1, 1, 
+                 last_row["IntraDayTrend"], last_row["IntraDaySeasonal"], last_row["IntraWeekTrend"], last_row["IntraWeekSeasonal"]]
+        
+        input = np.append(tail, input)
+        
+        return np.array(input).astype("float32").reshape(1, -1)
+
+    def predict(self, input):
+        return self.model.predict(input)[0][0]
+
 
 class availablemodes:
 

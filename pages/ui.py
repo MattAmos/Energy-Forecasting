@@ -5,7 +5,7 @@ import datetime as dt
 import dash
 import plotly.express as px
 from dash import dcc
-from dash import html
+from dash import html, callback
 
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
@@ -24,19 +24,13 @@ all_sets = available.get_keys()
 periods = available.return_periods(all_sets[0])
 models = available.return_models(all_sets[0])
 
-app = dash.Dash(
-    __name__,
-    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
-)
-app.title = "Energy Consumption Predictor"
-
-# server = app.server
+dash.register_page(__name__, path='/', name='Home') # '/' is home page
 
 app_color = {"graph_bg": "#082255", "graph_line": "#007ACE", "drop_text": "#007ACE", 
              "drop_bg": "#082255", "drop_out": "#007ACE", "pred_colour": 'aqua', 
              "actual_colour": 'white', "base_colour": "#42C4F7"}
 
-app.layout = html.Div(
+layout = html.Div(
     [
         # header
         html.Div(
@@ -45,7 +39,7 @@ app.layout = html.Div(
                     [
                         html.H4("Energy Consumption Forecaster", className="app__header__title"),
                         html.P(
-                            "This app predicts the future consumption of energy for individual households using a variety of ML models.",
+                            "This home page predicts the future consumption of energy for individual households using a variety of ML models.",
                             className="app__header__title--grey",
                         ),
                     ],
@@ -228,7 +222,7 @@ app.layout = html.Div(
 )
 
 
-@app.callback(
+@callback(
     Output("energy-forecast", "figure"), 
     [Input('dataset', 'value'),
      Input('model', 'value'),
@@ -314,7 +308,7 @@ def gen_energy_forecast(set_name, model, baseline, period):
     return dict(data=data, layout=layout)
 
 
-@app.callback(
+@callback(
     Output("performance-characteristics", "figure"), 
     [Input('dataset', 'value'),
      Input('model', 'value'),
@@ -354,7 +348,7 @@ def gen_metrics(set_name, model, baseline, period):
     return dict(data=data, layout=layout)
 
 
-@app.callback(
+@callback(
     Output("error-distribution", "figure"),
     [Input('dataset', 'value'),
      Input('model', 'value'),
@@ -492,7 +486,7 @@ def gen_error_histogram(set_name, model, period, baseline, energy_forecast_figur
     return dict(data=[trace, scatter_data[0], scatter_data[1], trace3], layout=layout)
 
 
-@app.callback(
+@callback(
     Output("bin-auto", "value"),
     [Input("bin-slider", "value")],
     [State("energy-forecast", "figure")],
@@ -511,7 +505,7 @@ def deselect_auto(slider_value, energy_forecast_figure):
     return ["Auto"]
 
 
-@app.callback(
+@callback(
     Output('model', 'options'),
     Output('model', 'value'),
     Input('dataset', 'value')
@@ -525,7 +519,7 @@ def update_model_options(dataset):
     return [{'label': i, 'value': i} for i in models], models[0]
 
 
-@app.callback(
+@callback(
     Output('period', 'options'),
     Output('period', 'value'),
     Input('dataset', 'value')
@@ -538,7 +532,7 @@ def update_period_options(dataset):
     return [{'label': i, 'value': i} for i in periods], periods[0]
 
 
-@app.callback(
+@callback(
     Output('baseline', 'options'),
     Output('baseline', 'value'),
     Input('dataset', 'value')
@@ -558,7 +552,7 @@ def update_baseline_options(dataset):
     return options, value
 
 
-@app.callback(
+@callback(
     Output("bin-size", "children"),
     [Input("bin-auto", "value")],
     [State("bin-slider", "value")],
@@ -569,7 +563,3 @@ def show_num_bins(autoValue, slider_value):
     if "Auto" in autoValue:
         return "# of Bins: Auto"
     return "# of Bins: " + str(int(slider_value))
-
-
-if __name__ == "__main__":
-    app.run_server(debug=True)
