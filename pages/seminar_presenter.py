@@ -225,7 +225,7 @@ def update_consumption_label(_, holiday, humidity, drybulb, dewpoint, wetbulb):
         input = forecaster.create_input(humidity, holiday, drybulb, dewpoint, wetbulb, 10)
         prediction = forecaster.predict(input)
 
-        return '        {:.2f}'.format(prediction)
+        return '{:.2f}'.format(prediction)
     else:
         return "0.000"
 
@@ -245,7 +245,7 @@ def update_consumption_distribution(_, holiday, humidity, drybulb, dewpoint, wet
         
         bin_val = np.histogram(
             targets,
-            bins=range(int(round(min(targets))), int(round(max(targets)))),
+            bins=20,
         )
     
     except Exception as error:
@@ -304,6 +304,8 @@ def update_consumption_distribution(_, holiday, humidity, drybulb, dewpoint, wet
 
         input = forecaster.create_input(humidity, holiday, drybulb, dewpoint, wetbulb, 10)
         prediction = forecaster.predict(input)
+
+        prediction = 10000
 
         scatter_data = dict(
                             type="scatter",
