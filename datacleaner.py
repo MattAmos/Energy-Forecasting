@@ -168,13 +168,15 @@ def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  se
         data.loc[data['Weekday'] < 5, 'IsWorkingDay'] = 1
         data.loc[data['Weekday'] > 4, 'IsWorkingDay'] = 0
 
-    dec_daily = seasonal_decompose(data[target], model=trend_type, period=epd)
-    dec_weekly = seasonal_decompose(data[target], model=trend_type, period=epd*7)
+    if future != 0:
+        dec_daily = seasonal_decompose(data[target], model=trend_type, period=epd)
+        data['IntraDayTrend'] = dec_daily.trend
+        data['IntraDaySeasonal'] = dec_daily.seasonal
 
-    data['IntraDayTrend'] = dec_daily.trend
-    data['IntraDaySeasonal'] = dec_daily.seasonal
-    data['IntraWeekTrend'] = dec_weekly.trend
-    data['IntraWeekSeasonal'] = dec_weekly.seasonal
+    if future != 7:
+        dec_weekly = seasonal_decompose(data[target], model=trend_type, period=epd*7)
+        data['IntraWeekTrend'] = dec_weekly.trend
+        data['IntraWeekSeasonal'] = dec_weekly.seasonal
 
     data = data.dropna(how='any', axis='rows')
     y = data[target].shift(-epd*future).reset_index(drop=True)
