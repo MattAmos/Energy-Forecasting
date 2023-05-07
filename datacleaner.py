@@ -72,8 +72,8 @@ def finalise_data(data, outputs, target, best_results):
         outputs = y_scaler.fit_transform(outputs[[target]])
 
     elif best_results.get("scaler") == "standard":
-        X_scaler = StandardScaler(feature_range=(0,1))
-        y_scaler = StandardScaler(feature_range=(0,1))
+        X_scaler = StandardScaler()
+        y_scaler = StandardScaler()
         data = X_scaler.fit_transform(data)
         outputs = y_scaler.fit_transform(outputs[[target]])
 
@@ -178,9 +178,11 @@ def feature_adder(csv_directory, file_path, target, trend_type, future, epd,  se
         data['IntraWeekTrend'] = dec_weekly.trend
         data['IntraWeekSeasonal'] = dec_weekly.seasonal
 
+    data[target] = y = data[target].shift(-epd*future)
     data = data.dropna(how='any', axis='rows')
-    y = data[target].shift(-epd*future).reset_index(drop=True)
-    y = y.dropna(how='any', axis='rows')
+    y = data[target].reset_index(drop=True)
+    # y = data[target].shift(-epd*future).reset_index(drop=True)
+    # y = y.dropna(how='any', axis='rows')
 
     future_dates = pd.Series(data.index[future*epd:])
     outputs = pd.DataFrame({"Date": future_dates, "{0}".format(target): y})

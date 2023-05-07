@@ -15,7 +15,6 @@ import os
 import pandas as pd
 import numpy as np
 import keras_tuner as kt
-import matplotlib.pyplot as plt
 
 from performance_analysis import *
 

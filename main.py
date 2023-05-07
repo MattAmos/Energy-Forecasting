@@ -3,7 +3,7 @@ from datacleaner import *
 from basic_nn import *
 from complex_nn import *
 from xgboost_model import *
-from tpot_model import *
+# from tpot_model import *
 from rf_model import *
 from performance_analysis import normalise_metrics, make_metrics_csvs
 
@@ -19,9 +19,9 @@ if __name__=="__main__":
     target = "SYSLoad"
     trend_type = "Additive"
     epd = 48
-    future = 0
+    future = 1
 
-    cleaning = 0
+    cleaning = 1
     training = 1
     predicting = 1
     eval_tpot = 0
@@ -39,7 +39,7 @@ if __name__=="__main__":
 
     window = 10
     split = 0.8
-    epochs = 1
+    epochs = 100
     batch_size = 32
 
     if cleaning:
@@ -69,18 +69,22 @@ if __name__=="__main__":
             # It'll just get the job done for now
             best_results = data_cleaning_pipeline(data[:partition], outputs[:partition], cleaning_parameters, target, split, data_epochs, batch_size, csv_directory)
 
+    print("finished cleaning")
     X_frame, y_data, pred_dates, y_scaler = finalise_data(data, outputs, target, best_results)
     length = X_frame.shape[0]
 
     pred_dates_test = pred_dates[int(length*split) + window:]
 
-    y_test = y_data[int(length*split) + window:]
-    X_test_2d = create_dataset_2d(X_frame[int(length*split):], window)
-    X_test_3d = create_dataset_3d(X_frame[int(length*split):], window)
+    X_2d = create_dataset_2d(X_frame, window)
+    X_3d = create_dataset_3d(X_frame, window)
 
-    y_train = y_data[window:int(length*split)]
-    X_train_2d = create_dataset_2d(X_frame[:int(length*split)], window)
-    X_train_3d = create_dataset_3d(X_frame[:int(length*split)], window)
+    y_test = y_data[int(length*split) + window:]
+    X_test_2d = X_2d[int(length*split):]
+    X_test_3d = X_3d[int(length*split):]
+
+    y_train = y_data[window:int(length*split) + window]
+    X_train_2d = X_2d[:int(length * split)]
+    X_train_3d = X_3d[:int(length * split)]
 
     if training:
 
