@@ -46,6 +46,7 @@ def build_simple_model():
     return model
 
 
+# Testing
 def train_simple_model(model, X_frame, y_frame, split, data_epochs, batch_size, y_scaler):
 
     length = X_frame.shape[0]
